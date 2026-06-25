@@ -1,0 +1,12 @@
+.next/
+node_modules/
+data/feedback-store.json
+dist-scripts/
+*.env.local
+.vercel
+
+.claude/
+
+dev-server.log
+
+dev-server-err.log
