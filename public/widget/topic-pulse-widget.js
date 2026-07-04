@@ -9,14 +9,14 @@
   })();
 
   var FALLBACK_PULSES = [
-    { label: 'RBI policy updates',   query: 'RBI',          articleCount: 3, category: 'Banking & Finance',  reason: 'Suggested' },
-    { label: 'Stock market rally',   query: 'stock market', articleCount: 4, category: 'Markets & Economy',  reason: 'Suggested' },
-    { label: 'Delhi heatwave alert', query: 'Delhi',        articleCount: 4, category: 'Cities & States',    reason: 'Suggested' },
-    { label: 'Bihar by-elections',   query: 'elections',    articleCount: 2, category: 'Politics',           reason: 'Suggested' },
-    { label: 'Gold import rules',    query: 'gold',         articleCount: 2, category: 'Commodities',        reason: 'Suggested' },
-    { label: 'Monsoon alerts',       query: 'weather',      articleCount: 2, category: 'Weather & Climate',  reason: 'Suggested' },
-    { label: 'Startup funding surge', query: 'startups',   articleCount: 3, category: 'Startups & Tech',    reason: 'Suggested' },
-    { label: 'Parliament session',   query: 'parliament',   articleCount: 2, category: 'Politics & Law',     reason: 'Suggested' },
+    { label: 'RBI policy updates',    query: 'RBI',          articleCount: 3, category: 'Banking & Finance',  emoji: '🏦' },
+    { label: 'Stock market rally',    query: 'stock market', articleCount: 4, category: 'Markets & Economy',  emoji: '📈' },
+    { label: 'Delhi heatwave alert',  query: 'Delhi',        articleCount: 4, category: 'Cities & States',    emoji: '🏙️' },
+    { label: 'Bihar by-elections',    query: 'elections',    articleCount: 2, category: 'Politics',           emoji: '🏛️' },
+    { label: 'Gold import rules',     query: 'gold',         articleCount: 2, category: 'Commodities',        emoji: '📦' },
+    { label: 'Monsoon alerts',        query: 'weather',      articleCount: 2, category: 'Weather & Climate',  emoji: '🌦️' },
+    { label: 'Startup funding surge', query: 'startups',     articleCount: 3, category: 'Startups & Tech',    emoji: '🚀' },
+    { label: 'Parliament session',    query: 'parliament',   articleCount: 2, category: 'Politics & Law',     emoji: '⚖️' },
   ];
 
   var FOLLOWUP_CHIPS = [
@@ -26,11 +26,30 @@
     { label: 'What changed since yesterday?', action: 'compare-yesterday' },
   ];
 
+  var CATEGORY_EMOJI = {
+    'Banking & Finance': '🏦',
+    'Markets & Economy': '📈',
+    'Cities & States':   '🏙️',
+    'Politics':          '🏛️',
+    'Politics & Law':    '⚖️',
+    'Commodities':       '📦',
+    'Weather & Climate': '🌦️',
+    'Startups & Tech':   '🚀',
+    'Energy':            '⚡',
+    'Healthcare':        '🏥',
+    'Sports':            '🏏',
+    'International':     '🌍',
+  };
+
+  function getCategoryEmoji(category) {
+    return CATEGORY_EMOJI[category] || '📰';
+  }
+
   function formatTime(iso) {
     try {
       var d = new Date(iso);
       return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-    } catch (e) { return iso; }
+    } catch (e) { return String(iso || ''); }
   }
 
   function escHtml(str) {
@@ -45,46 +64,22 @@
     return !url || url.indexOf('example.com') !== -1;
   }
 
-  function buildArticleCard(a) {
-    var linkHtml;
-    if (isDemoUrl(a.url)) {
-      linkHtml = '<span class="tp-article-link tp-demo-link" data-demo-url="' + escHtml(a.url) + '">Read &rarr;</span>';
-    } else {
-      linkHtml = '<a class="tp-article-link" href="' + escHtml(a.url) + '" target="_blank" rel="noopener">Read &rarr;</a>';
-    }
-    return (
-      '<div class="tp-article-card">' +
-        '<div class="tp-article-title">' + escHtml(a.title) + '</div>' +
-        '<div class="tp-article-excerpt">' + escHtml(a.excerpt) + '</div>' +
-        '<div class="tp-article-meta">' +
-          '<span class="tp-article-source">' + escHtml(a.source) + '</span>' +
-          '<span class="tp-article-time">' + formatTime(a.publishedAt) + '</span>' +
-          linkHtml +
-        '</div>' +
-      '</div>'
-    );
-  }
-
-  function attachDemoLinkHandlers(container) {
-    container.querySelectorAll('.tp-demo-link').forEach(function (el) {
-      el.addEventListener('click', function () { showDemoToast(); });
-    });
-  }
-
+  // ─── Toast ───
   var _toastTimer = null;
-  function showDemoToast() {
-    var existing = document.getElementById('tp-demo-toast');
+  function showToast(message) {
+    var existing = document.getElementById('tp-toast');
     if (existing) { clearTimeout(_toastTimer); existing.remove(); }
     var toast = document.createElement('div');
-    toast.id = 'tp-demo-toast';
+    toast.id = 'tp-toast';
     toast.style.cssText = [
-      'position:fixed', 'bottom:90px', 'right:24px', 'z-index:10001',
-      'background:#333', 'color:#fff', 'font-size:12px', 'padding:10px 14px',
-      'border-radius:8px', 'max-width:280px', 'line-height:1.5',
-      'box-shadow:0 4px 14px rgba(0,0,0,0.25)', 'font-family:system-ui,sans-serif',
+      'position:fixed', 'bottom:90px', 'right:20px', 'z-index:10001',
+      'background:#1f2937', 'color:#fff', 'font-size:12px', 'padding:10px 14px',
+      'border-radius:10px', 'max-width:280px', 'line-height:1.5',
+      'box-shadow:0 4px 14px rgba(0,0,0,0.2)',
+      "font-family:'Plus Jakarta Sans',system-ui,sans-serif",
       'transition:opacity 0.3s',
     ].join(';');
-    toast.textContent = 'Demo article link. Real article URLs will open after WordPress integration.';
+    toast.textContent = message;
     document.body.appendChild(toast);
     _toastTimer = setTimeout(function () {
       toast.style.opacity = '0';
@@ -92,48 +87,120 @@
     }, 3500);
   }
 
-  function createLauncher() {
-    var btn = document.createElement('button');
-    btn.id = 'tp-launcher';
-    btn.setAttribute('aria-label', 'Open Topic Pulse');
-    btn.setAttribute('aria-expanded', 'false');
-    btn.innerHTML = '<span class="tp-pulse-dot"></span> Topic Pulse';
-    return btn;
-  }
-
-  function createWidget() {
-    var div = document.createElement('div');
-    div.id = 'tp-widget';
-    div.setAttribute('role', 'dialog');
-    div.setAttribute('aria-label', 'Topic Pulse');
-    return div;
-  }
-
-  function renderPulseCards(container, pulses, sectionLabel) {
-    var labelEl = document.getElementById('tp-pulses-label');
-    if (labelEl) labelEl.textContent = sectionLabel;
-
-    container.innerHTML = pulses.map(function (p) {
-      return (
-        '<button class="tp-pulse-card" data-topic="' + escHtml(p.query) + '">' +
-          '<div class="tp-pulse-card-label">' + escHtml(p.label) + '</div>' +
-          '<div class="tp-pulse-card-meta">' +
-            p.articleCount + ' ' + (p.articleCount === 1 ? 'story' : 'stories') +
-            ' &middot; ' + escHtml(p.category) +
-          '</div>' +
-        '</button>'
-      );
-    }).join('');
-
-    container.querySelectorAll('.tp-pulse-card').forEach(function (card) {
-      card.addEventListener('click', function () {
-        var input = document.getElementById('tp-search-input');
-        if (input) input.value = card.getAttribute('data-topic');
-        submitQuery();
+  function attachDemoLinkHandlers(container) {
+    container.querySelectorAll('.tp-demo-link').forEach(function (el) {
+      el.addEventListener('click', function () {
+        showToast('Demo article link. Real article URLs will open after WordPress integration.');
       });
     });
   }
 
+  // ─── State ───
+  var _widget = null;
+  var _launcher = null;
+  var _isOpen = false;
+  var _currentQuery = '';
+  var _currentData = null;
+
+  // ─── Article card ───
+  function buildArticleCard(a) {
+    var readBtn;
+    if (isDemoUrl(a.url)) {
+      readBtn = '<button class="article-read-btn tp-demo-link">Read →</button>';
+    } else {
+      readBtn = '<a class="article-read-btn" href="' + escHtml(a.url) + '" target="_blank" rel="noopener">Read →</a>';
+    }
+    return (
+      '<div class="article-card">' +
+        '<div class="article-meta">' +
+          '<span class="article-date">' + formatTime(a.publishedAt) + '</span>' +
+          (a.source ? '<span class="article-category">' + escHtml(a.source) + '</span>' : '') +
+        '</div>' +
+        '<div class="article-title">' + escHtml(a.title) + '</div>' +
+        (a.excerpt ? '<div class="article-why">' + escHtml(a.excerpt) + '</div>' : '') +
+        '<div class="article-footer">' +
+          '<span class="article-source">' + escHtml(a.source || '') + '</span>' +
+          readBtn +
+        '</div>' +
+      '</div>'
+    );
+  }
+
+  // ─── Render related articles (returns HTML string) ───
+  function renderRelatedArticles(articles) {
+    if (!articles || !articles.length) return '';
+    return articles.map(function (a) { return buildArticleCard(a); }).join('');
+  }
+
+  // ─── Widget open / close / restart ───
+  function openWidget() {
+    _isOpen = true;
+    _widget.classList.add('open');
+    _launcher.classList.add('hidden');
+    _launcher.setAttribute('aria-expanded', 'true');
+  }
+
+  function closeWidget() {
+    _isOpen = false;
+    _widget.classList.remove('open');
+    _launcher.classList.remove('hidden');
+    _launcher.setAttribute('aria-expanded', 'false');
+  }
+
+  function restartWidget() {
+    _currentQuery = '';
+    _currentData = null;
+    renderWelcomeScreen();
+  }
+
+  // ─── Screen state helper ───
+  function showScreen(screenName) {
+    var backBtn = document.getElementById('tp-back-btn');
+    if (!backBtn) return;
+    if (screenName === 'welcome') {
+      backBtn.classList.add('hidden');
+    } else {
+      backBtn.classList.remove('hidden');
+    }
+  }
+
+  // ─── Welcome screen ───
+  function renderWelcomeScreen() {
+    var content = document.getElementById('tp-content');
+    if (!content) return;
+
+    content.innerHTML =
+      '<div class="saarthi-screen">' +
+        '<div class="bot-message">' +
+          '<div class="bot-message-title">Welcome to Topic Pulse ⚡</div>' +
+          '<p>Ask what happened today in any topic, location, company, market, or event.</p>' +
+        '</div>' +
+        '<div class="search-container">' +
+          '<input class="search-input" id="tp-search-input" type="text" ' +
+            'placeholder="What happened today in RBI?" aria-label="Search topic" />' +
+          '<button class="cta-button" id="tp-submit-btn">Get Pulse</button>' +
+        '</div>' +
+        '<div class="section-heading">Today\'s Pulses</div>' +
+        '<div class="option-buttons" id="tp-chips">' +
+          '<div class="pulses-loading"><div class="spinner-sm"></div> Loading…</div>' +
+        '</div>' +
+      '</div>';
+
+    showScreen('welcome');
+
+    var input = document.getElementById('tp-search-input');
+    document.getElementById('tp-submit-btn').addEventListener('click', function () {
+      submitQuery(input.value.trim());
+    });
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') submitQuery(input.value.trim());
+    });
+    setTimeout(function () { if (input) input.focus(); }, 80);
+
+    loadPulses();
+  }
+
+  // ─── Load today's pulses ───
   function loadPulses() {
     var container = document.getElementById('tp-chips');
     if (!container) return;
@@ -144,213 +211,52 @@
         return r.json();
       })
       .then(function (data) {
-        renderPulseCards(container, data.pulses && data.pulses.length ? data.pulses : FALLBACK_PULSES, "Today's Pulses");
+        var pulses = (data.pulses && data.pulses.length) ? data.pulses : FALLBACK_PULSES;
+        renderPulseCards(container, pulses);
       })
       .catch(function () {
-        renderPulseCards(container, FALLBACK_PULSES, 'Suggested');
+        renderPulseCards(container, FALLBACK_PULSES);
       });
   }
 
-  function renderHome(widget, query) {
-    widget.innerHTML =
-      '<div class="tp-header">' +
-        '<div class="tp-header-left">' +
-          '<span class="tp-logo-badge">AI</span>' +
-          '<span class="tp-header-title">Topic Pulse</span>' +
-        '</div>' +
-        '<button class="tp-close-btn" id="tp-close-btn" aria-label="Close">&times;</button>' +
-      '</div>' +
-      '<div class="tp-body">' +
-        '<p class="tp-subtitle">Ask what happened today in any topic, location, company, market, or event.</p>' +
-        '<div class="tp-search-wrap">' +
-          '<input class="tp-search-input" id="tp-search-input" type="text" placeholder="What happened today in…" value="' + escHtml(query || '') + '" aria-label="Search topic" />' +
-          '<button class="tp-submit-btn" id="tp-submit-btn">Get Pulse</button>' +
-        '</div>' +
-        '<div class="tp-chips-label" id="tp-pulses-label">Today\'s Pulses</div>' +
-        '<div class="tp-pulse-cards-grid" id="tp-chips">' +
-          '<div class="tp-pulses-loading"><div class="tp-spinner-sm"></div> Loading…</div>' +
-        '</div>' +
-      '</div>';
+  function renderPulseCards(container, pulses) {
+    container.innerHTML = pulses.map(function (p) {
+      var emoji = p.emoji || getCategoryEmoji(p.category);
+      return (
+        '<button class="option-btn" data-topic="' + escHtml(p.query) + '">' +
+          '<span class="option-btn-emoji">' + emoji + '</span>' +
+          '<span class="option-btn-label">' + escHtml(p.label) + '</span>' +
+          '<span class="option-btn-sublabel">' +
+            p.articleCount + ' ' + (p.articleCount === 1 ? 'story' : 'stories') +
+            ' · ' + escHtml(p.category) +
+          '</span>' +
+        '</button>'
+      );
+    }).join('');
 
-    document.getElementById('tp-close-btn').onclick = function () { closeWidget(); };
-    document.getElementById('tp-submit-btn').onclick = function () { submitQuery(); };
-    var input = document.getElementById('tp-search-input');
-    input.addEventListener('keydown', function (e) { if (e.key === 'Enter') submitQuery(); });
-    if (!query) { setTimeout(function () { input.focus(); }, 80); }
-
-    loadPulses();
-  }
-
-  function renderLoading(widget, query) {
-    var body = widget.querySelector('.tp-body');
-    if (!body) return;
-    body.innerHTML =
-      '<button class="tp-back-btn" id="tp-back-btn">&#8592; New Search</button>' +
-      '<div class="tp-loading"><div class="tp-spinner"></div> Getting pulse on <em>' + escHtml(query) + '</em>&hellip;</div>';
-    document.getElementById('tp-back-btn').onclick = function () { renderHome(widget, query); };
-  }
-
-  function buildResultHtml(data, articlesToShow) {
-    var confClass = 'tp-confidence-' + (data.confidence || 'none');
-    var confLabel = (data.confidence || 'none').charAt(0).toUpperCase() + (data.confidence || 'none').slice(1) + ' Confidence';
-
-    var sourceModeLabel = {
-      'static-demo-cache':    'Demo article cache',
-      'google-nlp-enriched':  'Google NLP enriched',
-      'wordpress-api':        'WordPress live feed',
-    }[data.sourceMode] || data.sourceMode;
-
-    var devHtml = '';
-    if (data.keyDevelopments && data.keyDevelopments.length) {
-      devHtml =
-        '<div class="tp-section-label">Key Developments</div>' +
-        '<ul class="tp-dev-list">' +
-        data.keyDevelopments.map(function (d) {
-          var linkPart;
-          if (isDemoUrl(d.sourceUrl)) {
-            linkPart = '<span class="tp-dev-source tp-demo-link" data-demo-url="' + escHtml(d.sourceUrl) + '">' + escHtml(d.sourceTitle) + ' &rarr;</span>';
-          } else {
-            linkPart = '<a class="tp-dev-source" href="' + escHtml(d.sourceUrl) + '" target="_blank" rel="noopener">' + escHtml(d.sourceTitle) + ' &rarr;</a>';
-          }
-          return '<li class="tp-dev-item">' + escHtml(d.text) + '<br>' + linkPart + '</li>';
-        }).join('') +
-        '</ul>';
-    }
-
-    var articlesHtml = '';
-    if (articlesToShow && articlesToShow.length) {
-      articlesHtml =
-        '<div class="tp-section-label" id="tp-related-label">Related Coverage</div>' +
-        '<div id="tp-article-list">' +
-        articlesToShow.map(function (a) { return buildArticleCard(a); }).join('') +
-        '</div>';
-    }
-
-    var caveatHtml = data.caveat ? '<div class="tp-caveat">' + escHtml(data.caveat) + '</div>' : '';
-
-    var followupHtml =
-      '<div class="tp-section-label">Follow-up</div>' +
-      '<div class="tp-followup-chips" id="tp-followup-chips">' +
-      FOLLOWUP_CHIPS.map(function (c) {
-        return '<button class="tp-followup-chip" data-action="' + escHtml(c.action) + '">' + escHtml(c.label) + '</button>';
-      }).join('') +
-      '</div>' +
-      '<div id="tp-followup-note" style="display:none;"></div>';
-
-    var feedbackHtml =
-      '<div class="tp-feedback" id="tp-feedback">' +
-        '<div class="tp-feedback-label">Was this useful?</div>' +
-        '<div class="tp-feedback-btns">' +
-          '<button class="tp-feedback-btn tp-feedback-yes" id="tp-fb-yes">Yes</button>' +
-          '<button class="tp-feedback-btn tp-feedback-no" id="tp-fb-no">No</button>' +
-        '</div>' +
-      '</div>';
-
-    return (
-      '<button class="tp-back-btn" id="tp-back-btn">&#8592; New Search</button>' +
-      '<h2 class="tp-result-topic">What happened today in ' + escHtml(data.topic) + '?</h2>' +
-      '<span class="tp-confidence-badge ' + confClass + '">' + confLabel + '</span>' +
-      '<div class="tp-section-label">Quick Pulse</div>' +
-      '<p class="tp-summary">' + escHtml(data.summary) + '</p>' +
-      caveatHtml +
-      devHtml +
-      articlesHtml +
-      '<div class="tp-result-meta">' +
-        '<span>&#128240; ' + (data.sourcesUsed || 0) + ' sources</span>' +
-        '<span>&#128337; ' + formatTime(data.lastUpdated) + '</span>' +
-        '<span>&#128190; ' + escHtml(sourceModeLabel) + '</span>' +
-      '</div>' +
-      followupHtml +
-      feedbackHtml
-    );
-  }
-
-  function renderResult(widget, data, originalQuery) {
-    var body = widget.querySelector('.tp-body');
-    body.innerHTML = buildResultHtml(data, data.relatedArticles);
-
-    attachDemoLinkHandlers(body);
-
-    document.getElementById('tp-back-btn').onclick = function () { renderHome(widget, originalQuery); };
-
-    body.querySelectorAll('.tp-followup-chip').forEach(function (chip) {
-      chip.addEventListener('click', function () {
-        var action = chip.getAttribute('data-action');
-        var note = document.getElementById('tp-followup-note');
-
-        if (action === 'sort-latest') {
-          var sorted = (data.relatedArticles || []).slice().sort(function (a, b) {
-            return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
-          });
-          var listEl = document.getElementById('tp-article-list');
-          var labelEl = document.getElementById('tp-related-label');
-          if (listEl) {
-            listEl.innerHTML = sorted.map(function (a) { return buildArticleCard(a); }).join('');
-            attachDemoLinkHandlers(listEl);
-          }
-          if (labelEl) labelEl.textContent = 'Related Coverage (Latest First)';
-          if (note) note.style.display = 'none';
-
-        } else if (action === 'scroll-articles') {
-          var articleSection = document.getElementById('tp-related-label');
-          if (articleSection) articleSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          if (note) note.style.display = 'none';
-
-        } else if (action === 'explain-bg') {
-          if (note) {
-            note.style.display = 'block';
-            note.className = 'tp-followup-note-box';
-            note.innerHTML = '&#128218; <strong>Background mode</strong> will be expanded when Claude API is connected. This version is limited to today\'s source-linked article cache.';
-          }
-
-        } else if (action === 'compare-yesterday') {
-          if (note) {
-            note.style.display = 'block';
-            note.className = 'tp-followup-note-box';
-            note.innerHTML = '&#128197; <strong>Comparison mode</strong> will be added when historical cache is connected. Showing today\'s available source pulse.';
-          }
-        }
+    container.querySelectorAll('.option-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        submitQuery(btn.getAttribute('data-topic'));
       });
     });
-
-    document.getElementById('tp-fb-yes').onclick = function () { sendFeedback(originalQuery, data, true); };
-    document.getElementById('tp-fb-no').onclick = function () { sendFeedback(originalQuery, data, false); };
   }
 
-  function renderError(widget, message, query) {
-    var body = widget.querySelector('.tp-body');
-    body.innerHTML =
-      '<button class="tp-back-btn" id="tp-back-btn">&#8592; New Search</button>' +
-      '<div style="padding:16px 0;color:#c62828;font-size:14px;">' + escHtml(message) + '</div>';
-    document.getElementById('tp-back-btn').onclick = function () { renderHome(widget, query); };
-  }
-
-  var _widget = null;
-  var _launcher = null;
-  var _isOpen = false;
-
-  function openWidget() {
-    _isOpen = true;
-    _widget.classList.add('tp-open');
-    _launcher.setAttribute('aria-expanded', 'true');
-  }
-
-  function closeWidget() {
-    _isOpen = false;
-    _widget.classList.remove('tp-open');
-    _launcher.setAttribute('aria-expanded', 'false');
-  }
-
-  function submitQuery() {
-    var input = document.getElementById('tp-search-input');
-    if (!input) return;
-    var query = input.value.trim();
+  // ─── Submit query ───
+  function submitQuery(query) {
     if (!query) return;
+    _currentQuery = query;
 
-    var submitBtn = document.getElementById('tp-submit-btn');
-    if (submitBtn) submitBtn.disabled = true;
+    var content = document.getElementById('tp-content');
+    if (!content) return;
 
-    renderLoading(_widget, query);
+    content.innerHTML =
+      '<div class="saarthi-screen">' +
+        '<div class="loading-container">' +
+          '<div class="spinner"></div>' +
+          '<p>Getting pulse on <em>' + escHtml(query) + '</em>…</p>' +
+        '</div>' +
+      '</div>';
+    showScreen('loading');
 
     fetch(API_BASE + '/api/topic-pulse/query', {
       method: 'POST',
@@ -362,46 +268,258 @@
         return r.json();
       })
       .then(function (data) {
-        renderResult(_widget, data, query);
+        _currentData = data;
+        renderResult(data);
       })
-      .catch(function (err) {
-        renderError(_widget, 'Could not fetch results. Please try again.', query);
+      .catch(function () {
+        renderError('Could not fetch results. Please try again.');
       });
   }
 
-  function sendFeedback(query, data, useful) {
+  // ─── Render result screen ───
+  function renderResult(data) {
+    var content = document.getElementById('tp-content');
+    if (!content) return;
+
+    var conf = data.confidence || 'none';
+    var confClass = 'confidence-' + conf;
+    var confLabel = conf.charAt(0).toUpperCase() + conf.slice(1);
+    var confPct = { high: '90', medium: '65', low: '35', none: '20' }[conf] || '20';
+
+    var sourceModeLabel = {
+      'static-demo-cache':   'Demo cache',
+      'google-nlp-enriched': 'NLP enriched',
+      'wordpress-api':       'WordPress live',
+    }[data.sourceMode] || (data.sourceMode || '');
+
+    // Key developments
+    var devHtml = '';
+    if (data.keyDevelopments && data.keyDevelopments.length) {
+      devHtml =
+        '<div class="section-heading">Key Developments</div>' +
+        data.keyDevelopments.map(function (d) {
+          var linkPart;
+          if (isDemoUrl(d.sourceUrl)) {
+            linkPart = '<span class="key-dev-source tp-demo-link">' + escHtml(d.sourceTitle) + ' →</span>';
+          } else {
+            linkPart = '<a class="key-dev-source" href="' + escHtml(d.sourceUrl) + '" target="_blank" rel="noopener">' + escHtml(d.sourceTitle) + ' →</a>';
+          }
+          return '<div class="key-dev-item">' + escHtml(d.text) + '<br>' + linkPart + '</div>';
+        }).join('');
+    }
+
+    // Related coverage
+    var relatedHtml = renderRelatedArticles(data.relatedArticles || []);
+    var relatedSection = relatedHtml
+      ? '<div class="section-heading">Related Coverage</div><div id="tp-article-list">' + relatedHtml + '</div>'
+      : '';
+
+    // Caveat
+    var caveatHtml = data.caveat
+      ? '<div class="caveat-block">' + escHtml(data.caveat) + '</div>'
+      : '';
+
+    // Follow-up buttons
+    var followupHtml =
+      '<div class="section-heading">Follow-up</div>' +
+      '<div class="secondary-buttons" id="tp-followup-btns">' +
+      FOLLOWUP_CHIPS.map(function (c) {
+        return '<button class="secondary-button" data-action="' + escHtml(c.action) + '">' + escHtml(c.label) + '</button>';
+      }).join('') +
+      '</div>' +
+      '<div id="tp-followup-note" class="hidden"></div>';
+
+    // Feedback
+    var feedbackHtml =
+      '<div class="feedback-section" id="tp-feedback">' +
+        '<div class="feedback-label">Was this useful?</div>' +
+        '<div class="feedback-buttons">' +
+          '<button class="feedback-btn feedback-btn-yes" id="tp-fb-yes">👍 Yes</button>' +
+          '<button class="feedback-btn feedback-btn-no"  id="tp-fb-no">👎 No</button>' +
+        '</div>' +
+      '</div>';
+
+    content.innerHTML =
+      '<div class="saarthi-screen">' +
+        '<div class="progress-container">' +
+          '<div class="progress-header">' +
+            '<span class="progress-text">What happened today in ' + escHtml(data.topic || _currentQuery) + '?</span>' +
+            '<span class="confidence-badge ' + confClass + '">' + confLabel + '</span>' +
+          '</div>' +
+          '<div class="progress-bar"><div class="progress-fill" style="width:' + confPct + '%"></div></div>' +
+          '<div class="progress-meta">' +
+            '<span>📰 ' + (data.sourcesUsed || 0) + ' sources</span>' +
+            '<span>🕐 ' + formatTime(data.lastUpdated) + '</span>' +
+            (sourceModeLabel ? '<span>💾 ' + escHtml(sourceModeLabel) + '</span>' : '') +
+          '</div>' +
+        '</div>' +
+        '<div class="bot-message">' +
+          '<div class="bot-message-title">Quick Pulse</div>' +
+          '<p>' + escHtml(data.summary) + '</p>' +
+        '</div>' +
+        caveatHtml +
+        devHtml +
+        relatedSection +
+        followupHtml +
+        feedbackHtml +
+      '</div>';
+
+    showScreen('result');
+    attachDemoLinkHandlers(content);
+
+    // Follow-up button handlers
+    content.querySelectorAll('.secondary-button').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var action = btn.getAttribute('data-action');
+        var note = document.getElementById('tp-followup-note');
+
+        if (action === 'sort-latest') {
+          var sorted = (data.relatedArticles || []).slice().sort(function (a, b) {
+            return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
+          });
+          var listEl = document.getElementById('tp-article-list');
+          if (listEl) {
+            listEl.innerHTML = renderRelatedArticles(sorted);
+            attachDemoLinkHandlers(listEl);
+          }
+          if (note) note.classList.add('hidden');
+
+        } else if (action === 'scroll-articles') {
+          var articleEl = document.getElementById('tp-article-list');
+          if (articleEl) articleEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          if (note) note.classList.add('hidden');
+
+        } else if (action === 'explain-bg') {
+          if (note) {
+            note.className = 'followup-note';
+            note.innerHTML = '📚 <strong>Background mode</strong> will be expanded when Claude API is connected. This version is limited to today\'s source-linked article cache.';
+          }
+
+        } else if (action === 'compare-yesterday') {
+          if (note) {
+            note.className = 'followup-note';
+            note.innerHTML = '📅 <strong>Comparison mode</strong> will be added when historical cache is connected. Showing today\'s available source pulse.';
+          }
+        }
+      });
+    });
+
+    document.getElementById('tp-fb-yes').onclick = function () { submitFeedback(true); };
+    document.getElementById('tp-fb-no').onclick  = function () { submitFeedback(false); };
+  }
+
+  // ─── Render error screen ───
+  function renderError(message) {
+    var content = document.getElementById('tp-content');
+    if (!content) return;
+
+    content.innerHTML =
+      '<div class="saarthi-screen">' +
+        '<div class="error-container">' +
+          '<span class="error-icon">⚠️</span>' +
+          '<p class="error-message">' + escHtml(message) + '</p>' +
+          '<button class="cta-button" id="tp-retry-btn" style="max-width:180px">Try Again</button>' +
+        '</div>' +
+      '</div>';
+
+    showScreen('error');
+
+    document.getElementById('tp-retry-btn').onclick = function () {
+      if (_currentQuery) submitQuery(_currentQuery); else restartWidget();
+    };
+  }
+
+  // ─── Submit feedback ───
+  function submitFeedback(useful) {
     var fbArea = document.getElementById('tp-feedback');
     if (!fbArea) return;
-    fbArea.innerHTML = '<span class="tp-feedback-thanks">Thanks for your feedback!</span>';
+    fbArea.innerHTML = '<span class="feedback-thanks">Thanks for your feedback!</span>';
 
     fetch(API_BASE + '/api/topic-pulse/feedback', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: query, topic: data.topic, useful: useful, sourcesUsed: data.sourcesUsed }),
+      body: JSON.stringify({
+        query: _currentQuery,
+        topic: _currentData ? _currentData.topic : _currentQuery,
+        useful: useful,
+        sourcesUsed: _currentData ? _currentData.sourcesUsed : 0,
+      }),
     }).catch(function () { /* non-critical */ });
   }
 
+  // ─── Build launcher ───
+  function createLauncher() {
+    var btn = document.createElement('button');
+    btn.id = 'topic-pulse-toggle';
+    btn.setAttribute('aria-label', 'Open Topic Pulse');
+    btn.setAttribute('aria-expanded', 'false');
+    btn.innerHTML =
+      '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">' +
+        '<path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>' +
+      '</svg>';
+    return btn;
+  }
+
+  // ─── Build widget shell ───
+  function createWidgetDOM() {
+    var div = document.createElement('div');
+    div.id = 'topic-pulse-widget';
+    div.setAttribute('role', 'dialog');
+    div.setAttribute('aria-label', 'Topic Pulse');
+    div.innerHTML =
+      '<div class="saarthi-header">' +
+        '<div class="saarthi-header-left">' +
+          '<button class="saarthi-header-back hidden" id="tp-back-btn" aria-label="Go back">' +
+            '← Back' +
+          '</button>' +
+          '<span class="saarthi-header-icon">⚡</span>' +
+          '<span class="saarthi-header-title">Topic Pulse</span>' +
+        '</div>' +
+        '<div class="saarthi-header-actions">' +
+          '<button class="saarthi-header-btn" id="tp-restart-btn" title="Restart" aria-label="Restart">↺</button>' +
+          '<button class="saarthi-header-btn" id="tp-close-btn" title="Close" aria-label="Close">✕</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="saarthi-content" id="tp-content"></div>';
+    return div;
+  }
+
+  // ─── Init ───
   function init() {
     var root = document.getElementById('topic-pulse-root') || document.body;
 
     _launcher = createLauncher();
-    _widget = createWidget();
+    _widget   = createWidgetDOM();
 
     root.appendChild(_launcher);
     root.appendChild(_widget);
 
-    renderHome(_widget, '');
+    // Swallow all clicks inside the widget — nothing inside should ever
+    // bubble out and accidentally trigger a close handler on the document.
+    _widget.addEventListener('click', function (e) { e.stopPropagation(); });
 
-    _launcher.addEventListener('click', function () {
-      if (_isOpen) { closeWidget(); } else { openWidget(); }
+    document.getElementById('tp-back-btn').addEventListener('click', function (e) {
+      e.stopPropagation();
+      restartWidget();
+    });
+    document.getElementById('tp-restart-btn').addEventListener('click', function (e) {
+      e.stopPropagation();
+      restartWidget();
+    });
+    document.getElementById('tp-close-btn').addEventListener('click', function (e) {
+      e.stopPropagation();
+      closeWidget();
     });
 
-    document.addEventListener('click', function (e) {
-      if (_isOpen && !_widget.contains(e.target) && e.target !== _launcher) {
-        closeWidget();
-      }
+    renderWelcomeScreen();
+
+    // Launcher opens widget; close is only via ✕ button or Escape key.
+    _launcher.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (!_isOpen) { openWidget(); }
     });
 
+    // Escape key closes widget
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && _isOpen) closeWidget();
     });
