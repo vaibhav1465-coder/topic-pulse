@@ -101,6 +101,8 @@
   var _isOpen = false;
   var _currentQuery = '';
   var _currentData = null;
+  var _selectedKeyDevIndex = 0;
+  var _keyDevExpanded = false;
 
   // ─── Article card ───
   function buildArticleCard(a) {
@@ -276,6 +278,71 @@
       });
   }
 
+  // ─── Key development helpers ───
+  function renderKeyDevelopmentTabs(developments) {
+    if (developments.length <= 1) return '';
+    return (
+      '<div class="key-dev-tabs">' +
+      developments.map(function (d, i) {
+        return '<button class="key-dev-tab' + (i === _selectedKeyDevIndex ? ' active' : '') +
+          '" data-index="' + i + '">' + (i + 1) + '</button>';
+      }).join('') +
+      '</div>'
+    );
+  }
+
+  function renderKeyDevelopmentPanel(developments, index) {
+    var d = developments[index];
+    if (!d) return '';
+    var linkPart;
+    if (isDemoUrl(d.sourceUrl)) {
+      linkPart = '<span class="key-dev-source tp-demo-link">' + escHtml(d.sourceTitle) + ' →</span>';
+    } else {
+      linkPart = '<a class="key-dev-source" href="' + escHtml(d.sourceUrl) + '" target="_blank" rel="noopener">' + escHtml(d.sourceTitle) + ' →</a>';
+    }
+    return (
+      '<div class="key-dev-item">' +
+        '<p class="key-dev-text' + (_keyDevExpanded ? '' : ' collapsed') + '" id="tp-key-dev-text">' + escHtml(d.text) + '</p>' +
+        '<button class="tp-read-more-btn" id="tp-key-dev-readmore">' + (_keyDevExpanded ? 'Show less' : 'Read more') + '</button>' +
+        '<br>' + linkPart +
+      '</div>'
+    );
+  }
+
+  function bindKeyDevelopmentEvents(developments, container) {
+    container.querySelectorAll('.key-dev-tab').forEach(function (tab) {
+      tab.addEventListener('click', function (e) {
+        e.stopPropagation();
+        e.preventDefault();
+        _selectedKeyDevIndex = parseInt(tab.getAttribute('data-index'), 10);
+        _keyDevExpanded = false;
+        var panel = document.getElementById('tp-key-dev-panel');
+        if (panel) {
+          panel.innerHTML = renderKeyDevelopmentPanel(developments, _selectedKeyDevIndex);
+          attachDemoLinkHandlers(panel);
+          bindKeyDevReadMore(developments, container);
+        }
+        container.querySelectorAll('.key-dev-tab').forEach(function (t, i) {
+          t.classList.toggle('active', i === _selectedKeyDevIndex);
+        });
+      });
+    });
+    bindKeyDevReadMore(developments, container);
+  }
+
+  function bindKeyDevReadMore(developments, container) {
+    var btn = document.getElementById('tp-key-dev-readmore');
+    if (!btn) return;
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      e.preventDefault();
+      _keyDevExpanded = !_keyDevExpanded;
+      var textEl = document.getElementById('tp-key-dev-text');
+      if (textEl) textEl.classList.toggle('collapsed', !_keyDevExpanded);
+      btn.textContent = _keyDevExpanded ? 'Show less' : 'Read more';
+    });
+  }
+
   // ─── Render result screen ───
   function renderResult(data) {
     var content = document.getElementById('tp-content');
@@ -293,20 +360,15 @@
     }[data.sourceMode] || (data.sourceMode || '');
 
     // Key developments
-    var devHtml = '';
-    if (data.keyDevelopments && data.keyDevelopments.length) {
-      devHtml =
-        '<div class="section-heading">Key Developments</div>' +
-        data.keyDevelopments.map(function (d) {
-          var linkPart;
-          if (isDemoUrl(d.sourceUrl)) {
-            linkPart = '<span class="key-dev-source tp-demo-link">' + escHtml(d.sourceTitle) + ' →</span>';
-          } else {
-            linkPart = '<a class="key-dev-source" href="' + escHtml(d.sourceUrl) + '" target="_blank" rel="noopener">' + escHtml(d.sourceTitle) + ' →</a>';
-          }
-          return '<div class="key-dev-item">' + escHtml(d.text) + '<br>' + linkPart + '</div>';
-        }).join('');
-    }
+    _selectedKeyDevIndex = 0;
+    _keyDevExpanded = false;
+    var developments = data.keyDevelopments || [];
+    var devHtml =
+      '<div class="section-heading">Key Developments</div>' +
+      (developments.length
+        ? renderKeyDevelopmentTabs(developments) +
+          '<div id="tp-key-dev-panel" class="key-dev-panel">' + renderKeyDevelopmentPanel(developments, 0) + '</div>'
+        : '<div class="key-dev-empty">No key developments found for this topic yet.</div>');
 
     // Related coverage
     var relatedHtml = renderRelatedArticles(data.relatedArticles || []);
@@ -355,7 +417,8 @@
         '</div>' +
         '<div class="bot-message">' +
           '<div class="bot-message-title">Quick Pulse</div>' +
-          '<p>' + escHtml(data.summary) + '</p>' +
+          '<p class="quick-pulse-text collapsed" id="tp-quick-pulse-text">' + escHtml(data.summary) + '</p>' +
+          '<button class="tp-read-more-btn" id="tp-quick-pulse-readmore">Read more</button>' +
         '</div>' +
         caveatHtml +
         devHtml +
@@ -366,6 +429,24 @@
 
     showScreen('result');
     attachDemoLinkHandlers(content);
+
+    // Quick Pulse read-more handler
+    var qpReadMoreBtn = document.getElementById('tp-quick-pulse-readmore');
+    if (qpReadMoreBtn) {
+      qpReadMoreBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        e.preventDefault();
+        var textEl = document.getElementById('tp-quick-pulse-text');
+        if (!textEl) return;
+        var collapsed = textEl.classList.toggle('collapsed');
+        qpReadMoreBtn.textContent = collapsed ? 'Read more' : 'Show less';
+      });
+    }
+
+    // Key Developments tab + read-more handlers
+    if (developments.length) {
+      bindKeyDevelopmentEvents(developments, content);
+    }
 
     // Follow-up button handlers
     content.querySelectorAll('.secondary-button').forEach(function (btn) {
