@@ -9,14 +9,37 @@
   })();
 
   var FALLBACK_PULSES = [
-    { label: 'RBI policy updates',    query: 'RBI',          articleCount: 3, category: 'Banking & Finance',  emoji: '🏦' },
-    { label: 'Stock market rally',    query: 'stock market', articleCount: 4, category: 'Markets & Economy',  emoji: '📈' },
-    { label: 'Delhi heatwave alert',  query: 'Delhi',        articleCount: 4, category: 'Cities & States',    emoji: '🏙️' },
-    { label: 'Bihar by-elections',    query: 'elections',    articleCount: 2, category: 'Politics',           emoji: '🏛️' },
-    { label: 'Gold import rules',     query: 'gold',         articleCount: 2, category: 'Commodities',        emoji: '📦' },
-    { label: 'Monsoon alerts',        query: 'weather',      articleCount: 2, category: 'Weather & Climate',  emoji: '🌦️' },
-    { label: 'Startup funding surge', query: 'startups',     articleCount: 3, category: 'Startups & Tech',    emoji: '🚀' },
-    { label: 'Parliament session',    query: 'parliament',   articleCount: 2, category: 'Politics & Law',     emoji: '⚖️' },
+    { label: 'Delhi city updates',        query: 'Delhi city updates',        articleCount: 4, category: 'Cities & States',          emoji: '🏙️' },
+    { label: 'Business & markets',        query: 'Business & markets',        articleCount: 4, category: 'Business & Markets',       emoji: '📈' },
+    { label: 'Politics & governance',     query: 'Politics & governance',     articleCount: 4, category: 'Politics & Governance',    emoji: '🏛️' },
+    { label: 'Weather & monsoon',         query: 'Weather & monsoon',         articleCount: 4, category: 'Weather & Climate',        emoji: '🌦️' },
+    { label: 'Technology & startups',     query: 'Technology & startups',     articleCount: 4, category: 'Startups & Tech',          emoji: '🚀' },
+    { label: 'Sports updates',            query: 'Sports updates',            articleCount: 4, category: 'Sports',                   emoji: '🏏' },
+    { label: 'Explained & policy',        query: 'Explained & policy',        articleCount: 4, category: 'Explained',                emoji: '📘' },
+    { label: 'Entertainment & lifestyle', query: 'Entertainment & lifestyle', articleCount: 4, category: 'Entertainment & Lifestyle', emoji: '🎬' },
+  ];
+
+  var METHODOLOGY_STEPS = [
+    {
+      title: 'Collect Recent News Stories',
+      text: 'Pull recent Indian Express article data from the last 2–3 days.',
+    },
+    {
+      title: 'Clean & Filter Articles',
+      text: 'Remove noise, drop non-article pages, and keep relevant story URLs.',
+    },
+    {
+      title: 'Understand Topics & Trends',
+      text: 'Use article signals, Google NLP, and Google Trends support.',
+    },
+    {
+      title: 'Group Similar Stories',
+      text: 'Cluster related stories into simple, user-friendly topics.',
+    },
+    {
+      title: 'Show the Pulse',
+      text: 'Present a quick pulse, key developments, and main related articles.',
+    },
   ];
 
   var FOLLOWUP_CHIPS = [
@@ -27,18 +50,22 @@
   ];
 
   var CATEGORY_EMOJI = {
-    'Banking & Finance': '🏦',
-    'Markets & Economy': '📈',
-    'Cities & States':   '🏙️',
-    'Politics':          '🏛️',
-    'Politics & Law':    '⚖️',
-    'Commodities':       '📦',
-    'Weather & Climate': '🌦️',
-    'Startups & Tech':   '🚀',
-    'Energy':            '⚡',
-    'Healthcare':        '🏥',
-    'Sports':            '🏏',
-    'International':     '🌍',
+    'Banking & Finance':       '🏦',
+    'Markets & Economy':       '📈',
+    'Business & Markets':      '📈',
+    'Cities & States':         '🏙️',
+    'Politics':                '🏛️',
+    'Politics & Law':          '⚖️',
+    'Politics & Governance':   '🏛️',
+    'Commodities':             '📦',
+    'Weather & Climate':       '🌦️',
+    'Startups & Tech':         '🚀',
+    'Energy':                  '⚡',
+    'Healthcare':              '🏥',
+    'Sports':                  '🏏',
+    'International':           '🌍',
+    'Explained':               '📘',
+    'Entertainment & Lifestyle': '🎬',
   };
 
   function getCategoryEmoji(category) {
@@ -191,13 +218,21 @@
       '<div class="saarthi-screen">' +
         '<div class="bot-message">' +
           '<div class="bot-message-title">Welcome to Topic Pulse ⚡</div>' +
-          '<p>Ask what happened today in any topic, location, company, market, or event.</p>' +
+          '<p>Topic Pulse helps readers follow important developments across multiple related articles by grouping recent coverage into simple, source-linked topic updates. Ask what happened today in any topic, location, company, market, or event.</p>' +
         '</div>' +
         '<div class="search-container">' +
           '<input class="search-input" id="tp-search-input" type="text" ' +
             'placeholder="What happened today in RBI?" aria-label="Search topic" />' +
           '<button class="cta-button" id="tp-submit-btn">Search</button>' +
         '</div>' +
+        '<button class="methodology-card" id="tp-methodology-card" type="button">' +
+          '<span class="methodology-card-icon">🧠</span>' +
+          '<span class="methodology-card-body">' +
+            '<span class="methodology-card-title">How this product works</span>' +
+            '<span class="methodology-card-subtitle">Simple 5-step methodology for demo explanation</span>' +
+          '</span>' +
+          '<span class="methodology-card-arrow">→</span>' +
+        '</button>' +
         '<div class="section-heading">Today\'s Pulses</div>' +
         '<div class="option-buttons" id="tp-chips">' +
           '<div class="pulses-loading"><div class="spinner-sm"></div> Loading…</div>' +
@@ -215,7 +250,43 @@
     });
     setTimeout(function () { if (input) input.focus(); }, 80);
 
+    document.getElementById('tp-methodology-card').addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      renderMethodologyScreen();
+    });
+
     loadPulses();
+  }
+
+  // ─── Methodology screen ───
+  function renderMethodologyScreen() {
+    var content = document.getElementById('tp-content');
+    if (!content) return;
+
+    var stepsHtml = METHODOLOGY_STEPS.map(function (step, i) {
+      return (
+        '<div class="methodology-step">' +
+          '<div class="methodology-step-number">' + (i + 1) + '</div>' +
+          '<div class="methodology-step-card">' +
+            '<div class="methodology-step-title">' + escHtml(step.title) + '</div>' +
+            '<div class="methodology-step-text">' + escHtml(step.text) + '</div>' +
+          '</div>' +
+        '</div>' +
+        (i < METHODOLOGY_STEPS.length - 1 ? '<div class="methodology-step-arrow">↓</div>' : '')
+      );
+    }).join('');
+
+    content.innerHTML =
+      '<div class="saarthi-screen">' +
+        '<div class="bot-message">' +
+          '<div class="bot-message-title">How It Works</div>' +
+          '<p>Important updates are spread across multiple stories. Topic Pulse brings them together into one quick, clear view.</p>' +
+        '</div>' +
+        '<div class="methodology-steps">' + stepsHtml + '</div>' +
+      '</div>';
+
+    showScreen('methodology');
   }
 
   // ─── Load today's pulses ───
