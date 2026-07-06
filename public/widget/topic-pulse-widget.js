@@ -42,13 +42,6 @@
     },
   ];
 
-  var FOLLOWUP_CHIPS = [
-    { label: 'Show latest only',              action: 'sort-latest' },
-    { label: 'Related coverage',              action: 'scroll-articles' },
-    { label: 'Explain background',            action: 'explain-bg' },
-    { label: 'What changed since yesterday?', action: 'compare-yesterday' },
-  ];
-
   var CATEGORY_EMOJI = {
     'Banking & Finance':       '🏦',
     'Markets & Economy':       '📈',
@@ -72,11 +65,24 @@
     return CATEGORY_EMOJI[category] || '📰';
   }
 
-  function formatTime(iso) {
+  function formatDateShort(iso) {
     try {
       var d = new Date(iso);
-      return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+      return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
     } catch (e) { return String(iso || ''); }
+  }
+
+  // ~200 wpm reading estimate from excerpt/content
+  function estimateReadMinutes(a) {
+    var text = (a && (a.content || a.excerpt)) || '';
+    var words = text.trim() ? text.trim().split(/\s+/).length : 0;
+    return Math.max(1, Math.round(words / 200));
+  }
+
+  function estimateTotalReadMinutes(articles) {
+    if (!articles || !articles.length) return 0;
+    var total = articles.reduce(function (sum, a) { return sum + estimateReadMinutes(a); }, 0);
+    return Math.max(1, total);
   }
 
   function escHtml(str) {
@@ -133,22 +139,39 @@
   var _currentData = null;
   var _selectedKeyDevIndex = 0;
   var _keyDevExpanded = false;
+  var _summaryDescExpanded = false;
+  // topic (string) -> Set of read article URLs, session-only, reset on page refresh
+  var _readProgress = {};
 
-  // ─── Article card ───
+  function getReadSet(topic) {
+    var key = topic || '';
+    if (!_readProgress[key]) _readProgress[key] = {};
+    return _readProgress[key];
+  }
+
+  function getReadCount(topic, totalArticles) {
+    var set = getReadSet(topic);
+    var count = 0;
+    for (var i = 0; i < totalArticles.length; i++) {
+      if (set[totalArticles[i].url]) count++;
+    }
+    return count;
+  }
+
+  // ─── Article card (UPSC-style) ───
   function buildArticleCard(a, index, variant) {
+    var cardClass = variant === 'main-article' ? 'article-card-main' : 'related-card-secondary';
     return (
-      '<div class="article-card clickable ' + variant + '" data-index="' + index + '" role="button" tabindex="0" ' +
+      '<div class="article-card clickable ' + cardClass + '" data-index="' + index + '" role="button" tabindex="0" ' +
         'aria-label="Open article: ' + escHtml(a.title) + '">' +
-        '<div class="article-meta">' +
-          '<span class="article-date">' + formatTime(a.publishedAt) + '</span>' +
-          (a.source ? '<span class="article-category">' + escHtml(a.source) + '</span>' : '') +
+        '<div class="article-card-meta">' +
+          '<span class="article-date">' + formatDateShort(a.publishedAt) + '</span>' +
+          (a.category ? '<span class="article-category-pill">' + escHtml(a.category) + '</span>' : '') +
+          '<span class="article-read-time">⏱ ' + estimateReadMinutes(a) + ' min</span>' +
         '</div>' +
         '<div class="article-title">' + escHtml(a.title) + '</div>' +
-        (a.excerpt ? '<div class="article-why">' + escHtml(a.excerpt) + '</div>' : '') +
-        '<div class="article-footer">' +
-          '<span class="article-source">' + escHtml(a.source || '') + '</span>' +
-          '<span class="article-read-indicator">Read →</span>' +
-        '</div>' +
+        (a.excerpt ? '<div class="article-excerpt">' + escHtml(a.excerpt) + '</div>' : '') +
+        '<button type="button" class="article-cta article-cta-gradient" tabindex="-1">Read Article →</button>' +
       '</div>'
     );
   }
@@ -160,7 +183,7 @@
   }
 
   // ─── Bind click / keyboard handlers for article cards ───
-  function bindArticleCardEvents(container, articles, currentTopic, contentPrefix) {
+  function bindArticleCardEvents(container, articles, currentTopic, contentPrefix, onRead) {
     container.querySelectorAll('.article-card.clickable').forEach(function (card) {
       var idx = parseInt(card.getAttribute('data-index'), 10);
       var a = articles[idx];
@@ -169,6 +192,8 @@
         e.preventDefault();
         e.stopPropagation();
         openArticle(a, currentTopic, contentPrefix + '_' + (idx + 1));
+        getReadSet(currentTopic)[a.url] = true;
+        if (onRead) onRead();
       }
       card.addEventListener('click', activate);
       card.addEventListener('keydown', function (e) {
@@ -422,34 +447,59 @@
     });
   }
 
+  var SUMMARY_DESC_TEXT = 'Topic Pulse groups recent related stories into a quick, source-linked update so readers can follow important developments without opening multiple sections.';
+
+  // ─── Topic summary panel (UPSC-style upper area) ───
+  function buildTopicSummaryPanel(topic, totalCount, mainArticles) {
+    var readCount = getReadCount(topic, mainArticles);
+    var totalMinutes = estimateTotalReadMinutes(mainArticles);
+    var pct = mainArticles.length ? Math.round((readCount / mainArticles.length) * 100) : 0;
+
+    return (
+      '<div class="topic-summary-panel">' +
+        '<div class="topic-summary-accent"></div>' +
+        '<div class="topic-summary-body">' +
+          '<div class="topic-summary-title">' + escHtml(topic) + '</div>' +
+          '<div class="topic-summary-count">' + totalCount + ' article' + (totalCount === 1 ? '' : 's') + ' available</div>' +
+          '<div class="topic-progress-row">' +
+            '<span id="tp-progress-count-text">' + readCount + '/' + mainArticles.length + ' articles read</span>' +
+            '<span class="topic-progress-time">' + totalMinutes + ' min</span>' +
+          '</div>' +
+          '<div class="topic-progress-bar"><div class="topic-progress-fill" id="tp-progress-fill-bar" style="width:' + pct + '%"></div></div>' +
+          '<p class="topic-summary-desc' + (_summaryDescExpanded ? '' : ' collapsed') + '" id="tp-summary-desc">' + escHtml(SUMMARY_DESC_TEXT) + '</p>' +
+          '<button class="topic-summary-readmore" id="tp-summary-readmore" type="button">' + (_summaryDescExpanded ? 'Show less' : 'Read More →') + '</button>' +
+        '</div>' +
+      '</div>'
+    );
+  }
+
+  function updateProgressUI(topic, mainArticles) {
+    var readCount = getReadCount(topic, mainArticles);
+    var pct = mainArticles.length ? Math.round((readCount / mainArticles.length) * 100) : 0;
+    var textEl = document.getElementById('tp-progress-count-text');
+    var fillEl = document.getElementById('tp-progress-fill-bar');
+    if (textEl) textEl.textContent = readCount + '/' + mainArticles.length + ' articles read';
+    if (fillEl) fillEl.style.width = pct + '%';
+  }
+
   // ─── Render result screen ───
   function renderResult(data) {
     var content = document.getElementById('tp-content');
     if (!content) return;
 
-    var conf = data.confidence || 'none';
-    var confClass = 'confidence-' + conf;
-    var confLabel = conf.charAt(0).toUpperCase() + conf.slice(1);
-    var confPct = { high: '90', medium: '65', low: '35', none: '20' }[conf] || '20';
-
-    var sourceModeLabel = data.sourceLabel || {
-      'static-demo-cache':      'Recent fallback cache',
-      'google-nlp-enriched':    'Recent fallback cache + Google NLP',
-      'wordpress-api':          'WordPress REST API',
-      'live-rss-feed':          'Live RSS feed',
-      'hybrid-live-rss-cache':  'Live RSS + Recent cache',
-    }[data.sourceMode] || (data.sourceMode || '');
-
     // Key developments
     _selectedKeyDevIndex = 0;
     _keyDevExpanded = false;
+    _summaryDescExpanded = false;
     var developments = data.keyDevelopments || [];
     var devHtml =
-      '<div class="section-heading">Key Developments</div>' +
-      (developments.length
-        ? renderKeyDevelopmentTabs(developments) +
-          '<div id="tp-key-dev-panel" class="key-dev-panel">' + renderKeyDevelopmentPanel(developments, 0) + '</div>'
-        : '<div class="key-dev-empty">No key developments found for this topic yet.</div>');
+      '<div class="key-dev-card">' +
+        '<div class="section-heading">Key Developments</div>' +
+        (developments.length
+          ? renderKeyDevelopmentTabs(developments) +
+            '<div id="tp-key-dev-panel" class="key-dev-panel">' + renderKeyDevelopmentPanel(developments, 0) + '</div>'
+          : '<div class="key-dev-empty">No key developments found for this topic yet.</div>') +
+      '</div>';
 
     // Main articles (top 5 latest) + Related coverage (remaining, latest first).
     // Only real, clickable indianexpress.com article pages are ever shown as cards.
@@ -465,28 +515,16 @@
 
     var mainArticlesHtml = renderArticleCards(mainArticles, 'main-article');
     var mainArticlesSection = mainArticlesHtml
-      ? '<div class="section-heading">Main Articles</div><div class="main-articles-section" id="tp-main-article-list">' + mainArticlesHtml + '</div>'
+      ? '<div class="section-heading">Main Articles</div><div class="article-list-section" id="tp-main-article-list">' + mainArticlesHtml + '</div>'
       : '';
 
     var relatedHtml = renderArticleCards(restArticles, 'related-article');
     var relatedSection = relatedHtml
-      ? '<div class="section-heading">Related Coverage</div><div class="related-articles-section" id="tp-article-list">' + relatedHtml + '</div>'
+      ? '<div class="section-heading">Related Coverage</div><div class="article-list-section" id="tp-article-list">' + relatedHtml + '</div>'
       : '';
 
-    // Caveat
-    var caveatHtml = data.caveat
-      ? '<div class="caveat-block">' + escHtml(data.caveat) + '</div>'
-      : '';
-
-    // Follow-up buttons
-    var followupHtml =
-      '<div class="section-heading">Follow-up</div>' +
-      '<div class="secondary-buttons" id="tp-followup-btns">' +
-      FOLLOWUP_CHIPS.map(function (c) {
-        return '<button class="secondary-button" data-action="' + escHtml(c.action) + '">' + escHtml(c.label) + '</button>';
-      }).join('') +
-      '</div>' +
-      '<div id="tp-followup-note" class="hidden"></div>';
+    var currentTopic = data.topic || _currentQuery;
+    var summaryPanelHtml = buildTopicSummaryPanel(currentTopic, allArticles.length, mainArticles);
 
     // Feedback
     var feedbackHtml =
@@ -500,40 +538,40 @@
 
     content.innerHTML =
       '<div class="saarthi-screen">' +
-        '<div class="progress-container">' +
-          '<div class="progress-header">' +
-            '<span class="progress-text">What happened today in ' + escHtml(data.topic || _currentQuery) + '?</span>' +
-            '<span class="confidence-badge ' + confClass + '">' + confLabel + '</span>' +
-          '</div>' +
-          '<div class="progress-bar"><div class="progress-fill" style="width:' + confPct + '%"></div></div>' +
-          '<div class="progress-meta">' +
-            '<span>📰 ' + (data.sourcesUsed || 0) + ' source' + ((data.sourcesUsed || 0) === 1 ? '' : 's') + '</span>' +
-            '<span>🕐 ' + formatTime(data.lastUpdated) + '</span>' +
-            (sourceModeLabel ? '<span>💾 Source: ' + escHtml(sourceModeLabel) + '</span>' : '') +
-          '</div>' +
-        '</div>' +
-        '<div class="bot-message">' +
+        summaryPanelHtml +
+        mainArticlesSection +
+        '<div class="quick-pulse-card bot-message">' +
           '<div class="bot-message-title">Quick Pulse</div>' +
           '<p class="quick-pulse-text collapsed" id="tp-quick-pulse-text">' + escHtml(data.summary) + '</p>' +
           '<button class="tp-read-more-btn" id="tp-quick-pulse-readmore">Read more</button>' +
         '</div>' +
-        caveatHtml +
-        mainArticlesSection +
         devHtml +
         relatedSection +
-        followupHtml +
         feedbackHtml +
       '</div>';
 
     showScreen('result');
 
-    var currentTopic = data.topic || _currentQuery;
+    var onRead = function () { updateProgressUI(currentTopic, mainArticles); };
 
     var mainArticleListEl = document.getElementById('tp-main-article-list');
-    if (mainArticleListEl) bindArticleCardEvents(mainArticleListEl, mainArticles, currentTopic, 'main_article');
+    if (mainArticleListEl) bindArticleCardEvents(mainArticleListEl, mainArticles, currentTopic, 'main_article', onRead);
 
     var articleListEl = document.getElementById('tp-article-list');
-    if (articleListEl) bindArticleCardEvents(articleListEl, restArticles, currentTopic, 'related_article');
+    if (articleListEl) bindArticleCardEvents(articleListEl, restArticles, currentTopic, 'related_article', onRead);
+
+    // Topic summary read-more handler
+    var summaryReadMoreBtn = document.getElementById('tp-summary-readmore');
+    if (summaryReadMoreBtn) {
+      summaryReadMoreBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        e.preventDefault();
+        _summaryDescExpanded = !_summaryDescExpanded;
+        var descEl = document.getElementById('tp-summary-desc');
+        if (descEl) descEl.classList.toggle('collapsed', !_summaryDescExpanded);
+        summaryReadMoreBtn.textContent = _summaryDescExpanded ? 'Show less' : 'Read More →';
+      });
+    }
 
     // Quick Pulse read-more handler
     var qpReadMoreBtn = document.getElementById('tp-quick-pulse-readmore');
@@ -552,43 +590,6 @@
     if (developments.length) {
       bindKeyDevelopmentEvents(developments, content);
     }
-
-    // Follow-up button handlers
-    content.querySelectorAll('.secondary-button').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var action = btn.getAttribute('data-action');
-        var note = document.getElementById('tp-followup-note');
-
-        if (action === 'sort-latest') {
-          var sorted = restArticles.slice().sort(function (a, b) {
-            return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
-          });
-          var listEl = document.getElementById('tp-article-list');
-          if (listEl) {
-            listEl.innerHTML = renderArticleCards(sorted, 'related-article');
-            bindArticleCardEvents(listEl, sorted, currentTopic, 'related_article');
-          }
-          if (note) note.classList.add('hidden');
-
-        } else if (action === 'scroll-articles') {
-          var articleEl = document.getElementById('tp-article-list');
-          if (articleEl) articleEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          if (note) note.classList.add('hidden');
-
-        } else if (action === 'explain-bg') {
-          if (note) {
-            note.className = 'followup-note';
-            note.innerHTML = '📚 <strong>Background mode</strong> will be expanded when Claude API is connected. This version is limited to today\'s source-linked article cache.';
-          }
-
-        } else if (action === 'compare-yesterday') {
-          if (note) {
-            note.className = 'followup-note';
-            note.innerHTML = '📅 <strong>Comparison mode</strong> will be added when historical cache is connected. Showing today\'s available source pulse.';
-          }
-        }
-      });
-    });
 
     document.getElementById('tp-fb-yes').onclick = function () { submitFeedback(true); };
     document.getElementById('tp-fb-no').onclick  = function () { submitFeedback(false); };
