@@ -1,3 +1,5 @@
+import { Fragment } from 'react';
+
 const demoStyles = `
   @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
@@ -177,9 +179,131 @@ const demoStyles = `
     .demo-instructions { grid-template-columns: 1fr; }
     .demo-container { padding: 36px 16px 140px; }
   }
+
+  /* ─── Methodology flow chart ─── */
+  .methodology-section {
+    border-top: 1px solid #e5e7eb;
+    padding-top: 36px;
+    margin-bottom: 36px;
+  }
+
+  .methodology-header {
+    text-align: center;
+    margin-bottom: 28px;
+  }
+
+  .methodology-title {
+    font-size: 24px;
+    font-weight: 800;
+    margin: 0 0 8px;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, #6366f1, #ec4899);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .methodology-subtitle {
+    font-size: 14px;
+    color: #6b7280;
+    margin: 0;
+  }
+
+  .methodology-flow {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .methodology-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    background: #fff;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 14px;
+    padding: 16px 18px;
+  }
+
+  .methodology-badge {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 9999px;
+    background: linear-gradient(135deg, #6366f1, #ec4899);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .methodology-step-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1f2937;
+    margin: 0 0 4px;
+  }
+
+  .methodology-step-text {
+    font-size: 12px;
+    color: #6b7280;
+    line-height: 1.55;
+    margin: 0;
+  }
+
+  .methodology-arrow {
+    display: flex;
+    justify-content: center;
+    color: #ec4899;
+    font-size: 18px;
+    padding: 4px 0;
+  }
+
+  @media (min-width: 768px) {
+    .methodology-flow {
+      flex-direction: row;
+      align-items: stretch;
+    }
+    .methodology-step {
+      flex: 1;
+      flex-direction: column;
+      text-align: center;
+      align-items: center;
+      gap: 8px;
+    }
+    .methodology-arrow {
+      align-items: center;
+      padding: 0 4px;
+    }
+  }
 `;
 
 export default function HomePage() {
+  const methodologySteps: { title: string; text: string }[] = [
+    {
+      title: 'Reader searches a topic',
+      text: 'Example: "What happened today in RBI?"',
+    },
+    {
+      title: 'Article source is checked',
+      text: 'V1 uses demo cache. Live version will use WordPress REST API.',
+    },
+    {
+      title: 'Topic and entity matching runs',
+      text: 'Relevant stories are grouped by topic, location, company, market, or event.',
+    },
+    {
+      title: 'Grounded pulse is generated',
+      text: 'Quick Pulse and Key Developments are created only from matched source stories.',
+    },
+    {
+      title: 'Related coverage is shown',
+      text: 'Readers can continue to full article cards for deeper reading.',
+    },
+  ];
+
   const apis: [string, string][] = [
     ['/api/health',                          'System health'],
     ['/api/topic-pulse/pulses',              "Today's dynamic pulses"],
@@ -233,6 +357,29 @@ export default function HomePage() {
         <div className="demo-note">
           <strong>Try these queries:</strong> RBI, stock market, Delhi, weather, elections, gold —
           or any trending topic from today&rsquo;s news.
+        </div>
+
+        <div className="methodology-section">
+          <div className="methodology-header">
+            <h2 className="methodology-title">How Topic Pulse Works</h2>
+            <p className="methodology-subtitle">A simple source-grounded flow for topic discovery.</p>
+          </div>
+          <div className="methodology-flow">
+            {methodologySteps.map((step, i) => (
+              <Fragment key={step.title}>
+                <div className="methodology-step">
+                  <div className="methodology-badge">{i + 1}</div>
+                  <div>
+                    <p className="methodology-step-title">{step.title}</p>
+                    <p className="methodology-step-text">{step.text}</p>
+                  </div>
+                </div>
+                {i < methodologySteps.length - 1 && (
+                  <div className="methodology-arrow" aria-hidden="true">→</div>
+                )}
+              </Fragment>
+            ))}
+          </div>
         </div>
 
         <details className="demo-apis">

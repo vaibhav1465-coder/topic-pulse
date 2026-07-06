@@ -1,24 +1,15 @@
 import { NextResponse } from 'next/server';
-import { loadArticles } from '@/lib/articleSource';
-import { extractEntities, getNlpStatus } from '@/lib/googleNlp';
+import { getArticlesWithSourceMode } from '@/lib/articleSource';
+import { enrichArticlesWithGoogleNlp, getNlpStatus } from '@/lib/googleNlp';
 import { writeCache, invalidateMemoryCache } from '@/lib/cacheStore';
-import { EnrichedArticle, TopicCache } from '@/lib/types';
+import { TopicCache } from '@/lib/types';
 
 export async function POST() {
-  const articles = loadArticles();
+  const { articles, sourceMode, liveCount, fallbackCount } = await getArticlesWithSourceMode();
   const nlpStatus = getNlpStatus();
 
-  const enriched: EnrichedArticle[] = [];
-
-  for (const article of articles) {
-    if (nlpStatus.enabled) {
-      const text = `${article.title}. ${article.excerpt}`;
-      const entities = await extractEntities(text);
-      enriched.push({ ...article, nlpEntities: entities });
-    } else {
-      enriched.push({ ...article });
-    }
-  }
+  // Google NLP only enriches text already fetched above — never a source itself.
+  const enriched = await enrichArticlesWithGoogleNlp(articles);
 
   const allTopics = [
     ...new Set(enriched.flatMap((a) => a.tags).map((t) => t.toLowerCase())),
@@ -39,6 +30,13 @@ export async function POST() {
     refreshed: true,
     articleCount: enriched.length,
     clusterCount: allTopics.length,
+    sourceMode,
+    sourceBreakdown: {
+      liveRss: liveCount,
+      googleNlp: nlpStatus.enabled,
+      fallbackCache: fallbackCount,
+      wordpressRestApi: false,
+    },
     nlpStatus: {
       enabled: nlpStatus.enabled,
       reason: nlpStatus.reason,

@@ -60,39 +60,42 @@
       .replace(/"/g, '&quot;');
   }
 
-  function isDemoUrl(url) {
-    return !url || url.indexOf('example.com') !== -1;
+  // A "real" clickable article page — mirrors lib/articleSource.ts isValidArticleUrl.
+  // Fallback demo cache URLs (example.com) and the bare homepage never render as cards.
+  function isValidArticleUrl(url) {
+    if (!url) return false;
+    try {
+      var u = new URL(url);
+      if (u.hostname !== 'indianexpress.com' && u.hostname !== 'www.indianexpress.com') return false;
+      var path = u.pathname.replace(/\/+$/, '');
+      if (!path || path === '') return false;
+      if (url.indexOf('example.com') !== -1) return false;
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
-  // ─── Toast ───
-  var _toastTimer = null;
-  function showToast(message) {
-    var existing = document.getElementById('tp-toast');
-    if (existing) { clearTimeout(_toastTimer); existing.remove(); }
-    var toast = document.createElement('div');
-    toast.id = 'tp-toast';
-    toast.style.cssText = [
-      'position:fixed', 'bottom:90px', 'right:20px', 'z-index:10001',
-      'background:#1f2937', 'color:#fff', 'font-size:12px', 'padding:10px 14px',
-      'border-radius:10px', 'max-width:280px', 'line-height:1.5',
-      'box-shadow:0 4px 14px rgba(0,0,0,0.2)',
-      "font-family:'Plus Jakarta Sans',system-ui,sans-serif",
-      'transition:opacity 0.3s',
-    ].join(';');
-    toast.textContent = message;
-    document.body.appendChild(toast);
-    _toastTimer = setTimeout(function () {
-      toast.style.opacity = '0';
-      setTimeout(function () { if (toast.parentNode) toast.remove(); }, 300);
-    }, 3500);
+  function addUtmParams(url, topic, contentTag) {
+    try {
+      var u = new URL(url);
+      u.searchParams.set('utm_source', 'topic_pulse');
+      u.searchParams.set('utm_medium', 'widget');
+      u.searchParams.set('utm_campaign', 'topic_pulse_discovery');
+      u.searchParams.set('utm_content', contentTag);
+      u.searchParams.set('utm_term', topic || '');
+      return u.toString();
+    } catch (e) {
+      return url;
+    }
   }
 
-  function attachDemoLinkHandlers(container) {
-    container.querySelectorAll('.tp-demo-link').forEach(function (el) {
-      el.addEventListener('click', function () {
-        showToast('Demo article link. Real article URLs will open after WordPress integration.');
-      });
-    });
+  function openArticle(a, currentTopic, contentTag) {
+    // Defensive only — the API already sends just valid, clickable article URLs,
+    // and cards for anything else are never rendered in the first place.
+    if (!isValidArticleUrl(a.url)) return;
+    var finalUrl = addUtmParams(a.url, currentTopic, contentTag);
+    window.open(finalUrl, '_blank', 'noopener,noreferrer');
   }
 
   // ─── State ───
@@ -105,15 +108,10 @@
   var _keyDevExpanded = false;
 
   // ─── Article card ───
-  function buildArticleCard(a) {
-    var readBtn;
-    if (isDemoUrl(a.url)) {
-      readBtn = '<button class="article-read-btn tp-demo-link">Read →</button>';
-    } else {
-      readBtn = '<a class="article-read-btn" href="' + escHtml(a.url) + '" target="_blank" rel="noopener">Read →</a>';
-    }
+  function buildArticleCard(a, index, variant) {
     return (
-      '<div class="article-card">' +
+      '<div class="article-card clickable ' + variant + '" data-index="' + index + '" role="button" tabindex="0" ' +
+        'aria-label="Open article: ' + escHtml(a.title) + '">' +
         '<div class="article-meta">' +
           '<span class="article-date">' + formatTime(a.publishedAt) + '</span>' +
           (a.source ? '<span class="article-category">' + escHtml(a.source) + '</span>' : '') +
@@ -122,16 +120,34 @@
         (a.excerpt ? '<div class="article-why">' + escHtml(a.excerpt) + '</div>' : '') +
         '<div class="article-footer">' +
           '<span class="article-source">' + escHtml(a.source || '') + '</span>' +
-          readBtn +
+          '<span class="article-read-indicator">Read →</span>' +
         '</div>' +
       '</div>'
     );
   }
 
-  // ─── Render related articles (returns HTML string) ───
-  function renderRelatedArticles(articles) {
+  // ─── Render article cards (returns HTML string) ───
+  function renderArticleCards(articles, variant) {
     if (!articles || !articles.length) return '';
-    return articles.map(function (a) { return buildArticleCard(a); }).join('');
+    return articles.map(function (a, i) { return buildArticleCard(a, i, variant); }).join('');
+  }
+
+  // ─── Bind click / keyboard handlers for article cards ───
+  function bindArticleCardEvents(container, articles, currentTopic, contentPrefix) {
+    container.querySelectorAll('.article-card.clickable').forEach(function (card) {
+      var idx = parseInt(card.getAttribute('data-index'), 10);
+      var a = articles[idx];
+      if (!a) return;
+      function activate(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        openArticle(a, currentTopic, contentPrefix + '_' + (idx + 1));
+      }
+      card.addEventListener('click', activate);
+      card.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') activate(e);
+      });
+    });
   }
 
   // ─── Widget open / close / restart ───
@@ -180,7 +196,7 @@
         '<div class="search-container">' +
           '<input class="search-input" id="tp-search-input" type="text" ' +
             'placeholder="What happened today in RBI?" aria-label="Search topic" />' +
-          '<button class="cta-button" id="tp-submit-btn">Get Pulse</button>' +
+          '<button class="cta-button" id="tp-submit-btn">Search</button>' +
         '</div>' +
         '<div class="section-heading">Today\'s Pulses</div>' +
         '<div class="option-buttons" id="tp-chips">' +
@@ -294,17 +310,10 @@
   function renderKeyDevelopmentPanel(developments, index) {
     var d = developments[index];
     if (!d) return '';
-    var linkPart;
-    if (isDemoUrl(d.sourceUrl)) {
-      linkPart = '<span class="key-dev-source tp-demo-link">' + escHtml(d.sourceTitle) + ' →</span>';
-    } else {
-      linkPart = '<a class="key-dev-source" href="' + escHtml(d.sourceUrl) + '" target="_blank" rel="noopener">' + escHtml(d.sourceTitle) + ' →</a>';
-    }
     return (
       '<div class="key-dev-item">' +
         '<p class="key-dev-text' + (_keyDevExpanded ? '' : ' collapsed') + '" id="tp-key-dev-text">' + escHtml(d.text) + '</p>' +
         '<button class="tp-read-more-btn" id="tp-key-dev-readmore">' + (_keyDevExpanded ? 'Show less' : 'Read more') + '</button>' +
-        '<br>' + linkPart +
       '</div>'
     );
   }
@@ -319,7 +328,6 @@
         var panel = document.getElementById('tp-key-dev-panel');
         if (panel) {
           panel.innerHTML = renderKeyDevelopmentPanel(developments, _selectedKeyDevIndex);
-          attachDemoLinkHandlers(panel);
           bindKeyDevReadMore(developments, container);
         }
         container.querySelectorAll('.key-dev-tab').forEach(function (t, i) {
@@ -353,10 +361,12 @@
     var confLabel = conf.charAt(0).toUpperCase() + conf.slice(1);
     var confPct = { high: '90', medium: '65', low: '35', none: '20' }[conf] || '20';
 
-    var sourceModeLabel = {
-      'static-demo-cache':   'Demo cache',
-      'google-nlp-enriched': 'NLP enriched',
-      'wordpress-api':       'WordPress live',
+    var sourceModeLabel = data.sourceLabel || {
+      'static-demo-cache':      'Recent fallback cache',
+      'google-nlp-enriched':    'Recent fallback cache + Google NLP',
+      'wordpress-api':          'WordPress REST API',
+      'live-rss-feed':          'Live RSS feed',
+      'hybrid-live-rss-cache':  'Live RSS + Recent cache',
     }[data.sourceMode] || (data.sourceMode || '');
 
     // Key developments
@@ -370,10 +380,26 @@
           '<div id="tp-key-dev-panel" class="key-dev-panel">' + renderKeyDevelopmentPanel(developments, 0) + '</div>'
         : '<div class="key-dev-empty">No key developments found for this topic yet.</div>');
 
-    // Related coverage
-    var relatedHtml = renderRelatedArticles(data.relatedArticles || []);
+    // Main articles (top 5 latest) + Related coverage (remaining, latest first).
+    // Only real, clickable indianexpress.com article pages are ever shown as cards.
+    var allArticles = (data.relatedArticles || [])
+      .filter(function (a) { return isValidArticleUrl(a.url); })
+      .sort(function (a, b) {
+        var ta = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
+        var tb = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
+        return tb - ta;
+      });
+    var mainArticles = allArticles.slice(0, 5);
+    var restArticles = allArticles.slice(5);
+
+    var mainArticlesHtml = renderArticleCards(mainArticles, 'main-article');
+    var mainArticlesSection = mainArticlesHtml
+      ? '<div class="section-heading">Main Articles</div><div class="main-articles-section" id="tp-main-article-list">' + mainArticlesHtml + '</div>'
+      : '';
+
+    var relatedHtml = renderArticleCards(restArticles, 'related-article');
     var relatedSection = relatedHtml
-      ? '<div class="section-heading">Related Coverage</div><div id="tp-article-list">' + relatedHtml + '</div>'
+      ? '<div class="section-heading">Related Coverage</div><div class="related-articles-section" id="tp-article-list">' + relatedHtml + '</div>'
       : '';
 
     // Caveat
@@ -410,9 +436,9 @@
           '</div>' +
           '<div class="progress-bar"><div class="progress-fill" style="width:' + confPct + '%"></div></div>' +
           '<div class="progress-meta">' +
-            '<span>📰 ' + (data.sourcesUsed || 0) + ' sources</span>' +
+            '<span>📰 ' + (data.sourcesUsed || 0) + ' source' + ((data.sourcesUsed || 0) === 1 ? '' : 's') + '</span>' +
             '<span>🕐 ' + formatTime(data.lastUpdated) + '</span>' +
-            (sourceModeLabel ? '<span>💾 ' + escHtml(sourceModeLabel) + '</span>' : '') +
+            (sourceModeLabel ? '<span>💾 Source: ' + escHtml(sourceModeLabel) + '</span>' : '') +
           '</div>' +
         '</div>' +
         '<div class="bot-message">' +
@@ -421,6 +447,7 @@
           '<button class="tp-read-more-btn" id="tp-quick-pulse-readmore">Read more</button>' +
         '</div>' +
         caveatHtml +
+        mainArticlesSection +
         devHtml +
         relatedSection +
         followupHtml +
@@ -428,7 +455,14 @@
       '</div>';
 
     showScreen('result');
-    attachDemoLinkHandlers(content);
+
+    var currentTopic = data.topic || _currentQuery;
+
+    var mainArticleListEl = document.getElementById('tp-main-article-list');
+    if (mainArticleListEl) bindArticleCardEvents(mainArticleListEl, mainArticles, currentTopic, 'main_article');
+
+    var articleListEl = document.getElementById('tp-article-list');
+    if (articleListEl) bindArticleCardEvents(articleListEl, restArticles, currentTopic, 'related_article');
 
     // Quick Pulse read-more handler
     var qpReadMoreBtn = document.getElementById('tp-quick-pulse-readmore');
@@ -455,13 +489,13 @@
         var note = document.getElementById('tp-followup-note');
 
         if (action === 'sort-latest') {
-          var sorted = (data.relatedArticles || []).slice().sort(function (a, b) {
+          var sorted = restArticles.slice().sort(function (a, b) {
             return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
           });
           var listEl = document.getElementById('tp-article-list');
           if (listEl) {
-            listEl.innerHTML = renderRelatedArticles(sorted);
-            attachDemoLinkHandlers(listEl);
+            listEl.innerHTML = renderArticleCards(sorted, 'related-article');
+            bindArticleCardEvents(listEl, sorted, currentTopic, 'related_article');
           }
           if (note) note.classList.add('hidden');
 

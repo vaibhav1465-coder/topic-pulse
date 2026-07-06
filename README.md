@@ -5,19 +5,24 @@ An AI-powered topic assistant widget for news websites. Readers can ask "What ha
 ## What V1 does
 
 - Floating widget embeddable on WordPress via two lines of HTML
-- Topic matching from a static article cache (20 sample articles across 8 topic clusters)
+- Fetches latest articles live from Indian Express RSS feeds (multiple sections), with a static
+  demo cache (20 sample articles) as automatic fallback if the live feed fails or returns too few articles
+- Topic matching against whichever article set is active (live or fallback)
 - Source-linked answers with confidence badges (High / Medium / Low)
+- Article cards link to the real article URL (with UTM tracking params) when live data is available
 - Key developments each linked to source articles
 - Feedback capture (Yes / No) sent to `/api/topic-pulse/feedback`
 - Cache refresh endpoint at `/api/topic-pulse/refresh`
 - Health check at `/api/health`
-- Google NLP entity extraction (optional, off by default)
+- Google NLP entity extraction (optional, off by default) — enriches article text/entities only;
+  never used as an article source
 
 ## What V1 does NOT do
 
 - Does not use Claude API or any LLM (all answers are template-based and grounded)
 - Does not use OpenAI API
-- Does not connect to WordPress REST API (uses local `sample-articles.json`)
+- Does not connect to the WordPress REST API (uses live RSS feeds instead, with local
+  `sample-articles.json` as fallback)
 - Does not use GA4 API
 - Does not require Supabase (uses local JSON fallback for feedback)
 
@@ -86,7 +91,19 @@ Replace `YOUR-VERCEL-DOMAIN` with your actual Vercel deployment URL.
 
 ## Google NLP (optional)
 
-To enable Google Cloud Natural Language entity enrichment:
+Google NLP only enriches article text/entities after articles have already been fetched
+(live RSS or demo cache) — it is never used as an article source itself.
+
+Simplest setup — API key (no service account needed):
+
+1. Create a Google Cloud project, enable the Natural Language API, and generate an API key
+2. Set in `.env.local`:
+   ```
+   GOOGLE_NLP_ENABLED=true
+   GOOGLE_NLP_API_KEY=<your-api-key>
+   ```
+
+Alternative — service account credentials:
 
 1. Create a Google Cloud project and enable the Natural Language API
 2. Create a service account and download the JSON key
@@ -96,7 +113,8 @@ To enable Google Cloud Natural Language entity enrichment:
    GOOGLE_NLP_ENABLED=true
    GOOGLE_SERVICE_ACCOUNT_JSON_BASE64=<base64-string>
    ```
-5. Run `npm run build:cache` to re-enrich the article cache
+
+Either way, run `npm run build:cache` to re-enrich the article cache.
 
 ## Later Upgrade Plan
 

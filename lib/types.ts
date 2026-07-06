@@ -10,6 +10,8 @@ export interface Article {
   author: string;
   source: string;
   imageUrl?: string;
+  sourceMode?: 'live-rss-feed' | 'static-demo-cache' | 'hybrid-live-rss-cache' | 'wordpress-rest-api';
+  sourceLabel?: string;
 }
 
 export interface NlpEntity {
@@ -35,6 +37,14 @@ export interface KeyDevelopment {
   sourceUrl: string;
 }
 
+export interface SourceBreakdown {
+  liveRss: number;
+  googleNlp: boolean;
+  googleTrends?: boolean;
+  fallbackCache: number;
+  wordpressRestApi: boolean;
+}
+
 export interface TopicPulseAnswer {
   topic: string;
   confidence: 'high' | 'medium' | 'low' | 'none';
@@ -43,7 +53,9 @@ export interface TopicPulseAnswer {
   relatedArticles: Article[];
   sourcesUsed: number;
   lastUpdated: string;
-  sourceMode: 'static-demo-cache' | 'google-nlp-enriched' | 'wordpress-api';
+  sourceMode: 'static-demo-cache' | 'google-nlp-enriched' | 'wordpress-api' | 'live-rss-feed' | 'hybrid-live-rss-cache';
+  sourceLabel: string;
+  sourceBreakdown: SourceBreakdown;
   caveat: string | null;
 }
 

@@ -150,8 +150,8 @@ function buildReason(articles: Article[]): string {
   return sources.slice(0, 2).join(', ');
 }
 
-export function getDynamicPulses(): TopicPulse[] {
-  const articles = loadArticles();
+export function getDynamicPulses(sourceArticles?: Article[]): TopicPulse[] {
+  const articles = sourceArticles && sourceArticles.length ? sourceArticles : loadArticles();
   const now = Date.now();
 
   const scored = CLUSTER_DEFS.map((cluster) => {

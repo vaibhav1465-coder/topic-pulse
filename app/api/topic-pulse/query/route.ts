@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { normalizeTopic, findArticlesForTopic } from '@/lib/topicEngine';
+import { normalizeTopic, findArticlesWithFallback, getClusterRule } from '@/lib/topicEngine';
 import { buildAnswer } from '@/lib/answerBuilder';
-import { getArticlesFromCache } from '@/lib/cacheStore';
+import { getArticlesWithSourceMode, isValidArticleUrl } from '@/lib/articleSource';
+import { enrichArticlesWithGoogleNlp } from '@/lib/googleNlp';
 
 async function handleQuery(query: string) {
   if (!query || query.trim().length < 2) {
@@ -9,11 +10,28 @@ async function handleQuery(query: string) {
   }
 
   const topic = normalizeTopic(query.trim());
-  const articles = getArticlesFromCache();
-  const matchResult = findArticlesForTopic(articles, topic);
+
+  // Hybrid pool: live RSS merged with the fallback cache whenever live succeeds,
+  // so a cluster the live feed happens to be missing today (e.g. elections)
+  // still has coverage. Google NLP only enriches text here — never a source.
+  const { articles } = await getArticlesWithSourceMode();
+  const enrichedArticles = await enrichArticlesWithGoogleNlp(articles);
+
+  // Same strict-cluster gate used by Today's Pulses when the query matches a
+  // curated cluster (e.g. "Delhi heatwave"); otherwise the normal single-group
+  // topic-signal match. Never widens the gate to admit unrelated articles.
+  const matchResult = findArticlesWithFallback(enrichedArticles, topic);
   const answer = buildAnswer(matchResult);
 
-  return NextResponse.json(answer);
+  const rule = getClusterRule(topic);
+  const validCount = matchResult.articles.filter((a) => isValidArticleUrl(a.url)).length;
+  const clusterValidation = {
+    passed: validCount > 0,
+    rule: rule ? rule.groups.map((g) => g.join(' OR ')).join(' AND ') : 'generic keyword match',
+    rejectedReason: validCount > 0 ? null : 'No strongly related live articles found for this specific topic yet.',
+  };
+
+  return NextResponse.json({ ...answer, clusterValidation });
 }
 
 export async function GET(req: NextRequest) {
