@@ -242,8 +242,7 @@ body {
   min-height: 330px;
   border-radius: 30px;
   padding: 24px;
-  background:
-    linear-gradient(135deg, rgba(99, 102, 241, 0.96), rgba(217, 70, 239, 0.94));
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.96), rgba(217, 70, 239, 0.94));
   box-shadow: 0 22px 55px rgba(139, 92, 246, 0.28);
   color: #ffffff;
   overflow: hidden;
@@ -351,43 +350,6 @@ body {
   color: #334155;
 }
 
-.tp-journey {
-  margin: 28px 0;
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(217, 70, 239, 0.08));
-  border: 1.5px solid rgba(139, 92, 246, 0.22);
-  border-radius: 24px;
-  padding: 24px;
-}
-
-.tp-journey-row {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.tp-journey-item {
-  background: #ffffff;
-  border: 1.5px solid var(--tp-border);
-  border-radius: 18px;
-  padding: 16px 12px;
-  text-align: center;
-  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
-}
-
-.tp-journey-icon {
-  display: block;
-  font-size: 23px;
-  margin-bottom: 8px;
-}
-
-.tp-journey-text {
-  margin: 0;
-  color: #111827;
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1.35;
-}
-
 .tp-measures {
   background: #ffffff;
   border: 1.5px solid var(--tp-border);
@@ -398,21 +360,21 @@ body {
 
 .tp-measure-row {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(9, minmax(0, 1fr));
   gap: 12px;
 }
 
 .tp-measure-card {
   border: 1.5px solid var(--tp-border);
   border-radius: 18px;
-  padding: 16px 12px;
+  padding: 16px 10px;
   text-align: center;
   background: #ffffff;
 }
 
 .tp-measure-value {
   display: block;
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 800;
   background: linear-gradient(135deg, var(--tp-indigo), var(--tp-pink));
   -webkit-background-clip: text;
@@ -423,7 +385,7 @@ body {
 
 .tp-measure-label {
   display: block;
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.35;
   color: #475569;
   font-weight: 700;
@@ -497,10 +459,9 @@ body {
     min-height: auto;
   }
 
-  .tp-journey-row,
   .tp-measure-row {
     overflow-x: auto;
-    grid-template-columns: repeat(6, 160px);
+    grid-template-columns: repeat(9, 150px);
     padding-bottom: 8px;
   }
 }
@@ -523,7 +484,6 @@ body {
   }
 
   .tp-product-visual,
-  .tp-journey,
   .tp-measures {
     padding: 18px;
   }
@@ -539,19 +499,13 @@ body {
 `;
 
 export default function HomePage() {
-  const journey = [
-    { icon: '🔎', text: 'Search topic' },
-    { icon: '📰', text: 'Check IE stories' },
-    { icon: '🧠', text: 'Build cluster' },
-    { icon: '⚡', text: 'Generate pulse' },
-    { icon: '📌', text: 'Show articles' },
-    { icon: '📈', text: 'Measure impact' },
-  ];
-
   const measures = [
     { value: 'Engagement', label: 'User engagement increase' },
     { value: 'Duration', label: 'Average time duration' },
-    { value: 'Sessions', label: 'Sessions and repeat visits' },
+    { value: 'Sessions', label: 'Total sessions' },
+    { value: 'Frequency', label: 'Session frequency' },
+    { value: 'DAU/MAU', label: 'Stickiness ratio' },
+    { value: 'Direct', label: 'Direct sessions' },
     { value: 'Depth', label: 'Pages per session' },
     { value: 'Clicks', label: 'Article click-throughs' },
     { value: 'Feedback', label: 'Reader usefulness score' },
@@ -673,22 +627,6 @@ export default function HomePage() {
                   <div className="tp-output-chip">Tracked clicks</div>
                 </div>
               </article>
-            </div>
-          </section>
-
-          <section className="tp-journey" aria-label="How Topic Pulse works">
-            <header className="tp-visual-header">
-              <p className="tp-kicker">How it works</p>
-              <h2 className="tp-section-title">Simple reader journey</h2>
-            </header>
-
-            <div className="tp-journey-row">
-              {journey.map((item) => (
-                <article className="tp-journey-item" key={item.text}>
-                  <span className="tp-journey-icon">{item.icon}</span>
-                  <p className="tp-journey-text">{item.text}</p>
-                </article>
-              ))}
             </div>
           </section>
 
