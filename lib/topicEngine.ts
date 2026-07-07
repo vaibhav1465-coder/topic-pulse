@@ -219,6 +219,10 @@ const QUERY_ONLY_STRICT_RULES: ClusterDef[] = [
 
 const ALL_CLUSTER_DEFS: ClusterDef[] = [...QUERY_ONLY_STRICT_RULES, ...PULSE_CLUSTER_DEFS];
 
+export function getClusterById(id: string): ClusterDef | null {
+  return ALL_CLUSTER_DEFS.find((d) => d.id === id) || null;
+}
+
 export function getClusterRule(queryOrLabel: string): ClusterDef | null {
   const q = queryOrLabel.toLowerCase().trim();
   const byQuery = ALL_CLUSTER_DEFS.find((d) => d.query.toLowerCase() === q);
@@ -259,6 +263,7 @@ export function deriveSafeClusterLabel(articles: EnrichedArticle[], baseQuery: s
 }
 
 export interface StrictCluster {
+  clusterId: string;
   label: string;
   query: string;
   category: string;
@@ -270,6 +275,21 @@ export interface StrictCluster {
   rejectedReason: string | null;
 }
 
+// Widget shows at most this many article cards for a cluster/pulse — the pulse
+// card's articleCount and the query result's article list must both be capped
+// here, or the two screens can disagree on how many stories a topic has.
+export const MAX_PULSE_ARTICLES = 5;
+
+/** Real, valid-URL articles matching a cluster rule, latest first — the single
+ * source of truth used by both buildStrictClusters (pulse cards) and the query
+ * route's clusterId lookup (result screen), so the two never disagree. */
+export function getMatchedClusterArticles(articles: EnrichedArticle[], rule: ClusterDef): EnrichedArticle[] {
+  return articles
+    .filter((a) => articleMatchesCluster(a, rule))
+    .filter((a) => isValidArticleUrl(a.url))
+    .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+}
+
 /**
  * Builds Today's Pulses directly from curated, evidence-gated cluster
  * definitions — a cluster is only ever returned if it has enough strictly
@@ -278,22 +298,21 @@ export interface StrictCluster {
  */
 export function buildStrictClusters(articles: EnrichedArticle[]): StrictCluster[] {
   const clusters: StrictCluster[] = PULSE_CLUSTER_DEFS.map((def) => {
-    const matched = articles.filter((a) => articleMatchesCluster(a, def));
-
-    const validMatched = matched
-      .filter((a) => isValidArticleUrl(a.url))
-      .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
-
+    const validMatched = getMatchedClusterArticles(articles, def);
+    const shown = validMatched.slice(0, MAX_PULSE_ARTICLES);
     const passed = validateCluster(validMatched.length, def.minArticles);
 
     return {
+      clusterId: def.id,
       label: def.label,
       query: def.query,
       category: def.category,
       requiredSignals: def.groups.map((g) => g.join(' OR ')),
       optionalSignals: [],
-      articleCount: validMatched.length,
-      articles: validMatched.slice(0, 5),
+      // Must equal shown.length — this is exactly what the widget renders as
+      // cards, both on the pulse card sublabel and after clicking through.
+      articleCount: shown.length,
+      articles: shown,
       validationStatus: passed ? 'passed' : 'rejected',
       rejectedReason: passed
         ? null

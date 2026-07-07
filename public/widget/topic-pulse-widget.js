@@ -113,10 +113,9 @@
   var _launcher = null;
   var _isOpen = false;
   var _currentQuery = '';
+  var _currentClusterId = null;
   var _currentData = null;
-  var _selectedKeyDevIndex = 0;
-  var _keyDevExpanded = false;
-  var _summaryDescExpanded = false;
+  var _quickPulseExpanded = false;
   // topic (string) -> Set of read article URLs, session-only, reset on page refresh
   var _readProgress = {};
   var _articleClickCount = 0;
@@ -205,6 +204,7 @@
 
   function restartWidget() {
     _currentQuery = '';
+    _currentClusterId = null;
     _currentData = null;
     renderWelcomeScreen();
   }
@@ -228,8 +228,8 @@
     content.innerHTML =
       '<div class="saarthi-screen">' +
         '<div class="bot-message">' +
-          '<div class="bot-message-title">Welcome to Topic Pulse ⚡</div>' +
-          '<p>Topic Pulse helps readers follow important developments across multiple related articles by grouping recent coverage into simple, source-linked topic updates. Ask what happened today in any topic, location, company, market, or event.</p>' +
+          '<div class="bot-message-title">Topic Pulse</div>' +
+          '<p>Ask what happened today in any topic, location, company, market, or event.</p>' +
         '</div>' +
         '<div class="search-container">' +
           '<input class="search-input" id="tp-search-input" type="text" ' +
@@ -279,7 +279,7 @@
     container.innerHTML = pulses.map(function (p) {
       var emoji = p.emoji || getCategoryEmoji(p.category);
       return (
-        '<button class="option-btn" data-topic="' + escHtml(p.query) + '">' +
+        '<button class="option-btn" data-topic="' + escHtml(p.query) + '" data-cluster-id="' + escHtml(p.clusterId || '') + '">' +
           '<span class="option-btn-emoji">' + emoji + '</span>' +
           '<span class="option-btn-label">' + escHtml(p.label) + '</span>' +
           '<span class="option-btn-sublabel">' +
@@ -292,15 +292,20 @@
 
     container.querySelectorAll('.option-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        submitQuery(btn.getAttribute('data-topic'));
+        submitQuery(btn.getAttribute('data-topic'), btn.getAttribute('data-cluster-id') || null);
       });
     });
   }
 
   // ─── Submit query ───
-  function submitQuery(query) {
+  // clusterId, when present (a Today's Pulse card click), makes the query API
+  // reuse the exact same cluster-matching rule the pulse card's count was built
+  // from — so the result screen can never show a different article count than
+  // the card promised.
+  function submitQuery(query, clusterId) {
     if (!query) return;
     _currentQuery = query;
+    _currentClusterId = clusterId || null;
 
     var content = document.getElementById('tp-content');
     if (!content) return;
@@ -317,7 +322,7 @@
     fetch(API_BASE + '/api/topic-pulse/query', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: query }),
+      body: JSON.stringify({ query: query, clusterId: _currentClusterId }),
     })
       .then(function (r) {
         if (!r.ok) throw new Error('Server error ' + r.status);
@@ -332,65 +337,11 @@
       });
   }
 
-  // ─── Key development helpers ───
-  function renderKeyDevelopmentTabs(developments) {
-    if (developments.length <= 1) return '';
-    return (
-      '<div class="key-dev-tabs">' +
-      developments.map(function (d, i) {
-        return '<button class="key-dev-tab' + (i === _selectedKeyDevIndex ? ' active' : '') +
-          '" data-index="' + i + '">' + (i + 1) + '</button>';
-      }).join('') +
-      '</div>'
-    );
-  }
+  // ─── Topic summary panel (upper area) ───
+  var TOPIC_SUMMARY_EXPLANATION =
+    'Topic Pulse groups recent related stories into one quick view so readers can follow the full development without searching across sections.';
 
-  function renderKeyDevelopmentPanel(developments, index) {
-    var d = developments[index];
-    if (!d) return '';
-    return (
-      '<div class="key-dev-item">' +
-        '<p class="key-dev-text' + (_keyDevExpanded ? '' : ' collapsed') + '" id="tp-key-dev-text">' + escHtml(d.text) + '</p>' +
-        '<button class="tp-read-more-btn" id="tp-key-dev-readmore">' + (_keyDevExpanded ? 'Show less' : 'Read more') + '</button>' +
-      '</div>'
-    );
-  }
-
-  function bindKeyDevelopmentEvents(developments, container) {
-    container.querySelectorAll('.key-dev-tab').forEach(function (tab) {
-      tab.addEventListener('click', function (e) {
-        e.stopPropagation();
-        e.preventDefault();
-        _selectedKeyDevIndex = parseInt(tab.getAttribute('data-index'), 10);
-        _keyDevExpanded = false;
-        var panel = document.getElementById('tp-key-dev-panel');
-        if (panel) {
-          panel.innerHTML = renderKeyDevelopmentPanel(developments, _selectedKeyDevIndex);
-          bindKeyDevReadMore(developments, container);
-        }
-        container.querySelectorAll('.key-dev-tab').forEach(function (t, i) {
-          t.classList.toggle('active', i === _selectedKeyDevIndex);
-        });
-      });
-    });
-    bindKeyDevReadMore(developments, container);
-  }
-
-  function bindKeyDevReadMore(developments, container) {
-    var btn = document.getElementById('tp-key-dev-readmore');
-    if (!btn) return;
-    btn.addEventListener('click', function (e) {
-      e.stopPropagation();
-      e.preventDefault();
-      _keyDevExpanded = !_keyDevExpanded;
-      var textEl = document.getElementById('tp-key-dev-text');
-      if (textEl) textEl.classList.toggle('collapsed', !_keyDevExpanded);
-      btn.textContent = _keyDevExpanded ? 'Show less' : 'Read more';
-    });
-  }
-
-  // ─── Topic summary panel (UPSC-style upper area) ───
-  function buildTopicSummaryPanel(topic, totalCount, mainArticles, summaryText) {
+  function buildTopicSummaryPanel(topic, totalCount, mainArticles, sourceLabel, topicSignalLabel) {
     var readCount = getReadCount(topic, mainArticles);
     var totalMinutes = estimateTotalReadMinutes(mainArticles);
     var pct = mainArticles.length ? Math.round((readCount / mainArticles.length) * 100) : 0;
@@ -406,11 +357,39 @@
             '<span class="topic-progress-time">' + totalMinutes + ' min</span>' +
           '</div>' +
           '<div class="topic-progress-bar"><div class="topic-progress-fill" id="tp-progress-fill-bar" style="width:' + pct + '%"></div></div>' +
-          '<p class="topic-summary-desc' + (_summaryDescExpanded ? '' : ' collapsed') + '" id="tp-summary-desc">' + escHtml(summaryText || '') + '</p>' +
-          '<button class="topic-summary-readmore" id="tp-summary-readmore" type="button">' + (_summaryDescExpanded ? 'Show less' : 'Read More →') + '</button>' +
+          '<div class="topic-signal-row">' +
+            (sourceLabel ? '<span class="topic-source-pill">Source: ' + escHtml(sourceLabel) + '</span>' : '') +
+            (topicSignalLabel ? '<span class="topic-signal-pill">Topic signal: ' + escHtml(topicSignalLabel) + '</span>' : '') +
+          '</div>' +
+          '<p class="topic-summary-desc">' + escHtml(TOPIC_SUMMARY_EXPLANATION) + '</p>' +
         '</div>' +
       '</div>'
     );
+  }
+
+  // ─── Quick Pulse (secondary, article-backed topic summary) ───
+  function buildQuickPulseSection(summaryText) {
+    if (!summaryText) return '';
+    return (
+      '<div class="quick-pulse-section">' +
+        '<div class="section-heading quick-pulse-heading">Quick Pulse</div>' +
+        '<p class="quick-pulse-text' + (_quickPulseExpanded ? '' : ' collapsed') + '" id="tp-quick-pulse-text">' + escHtml(summaryText) + '</p>' +
+        '<button class="tp-read-more-btn" id="tp-quick-pulse-readmore" type="button">' + (_quickPulseExpanded ? 'Show less' : 'Read more') + '</button>' +
+      '</div>'
+    );
+  }
+
+  function bindQuickPulseEvents() {
+    var btn = document.getElementById('tp-quick-pulse-readmore');
+    if (!btn) return;
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      e.preventDefault();
+      _quickPulseExpanded = !_quickPulseExpanded;
+      var textEl = document.getElementById('tp-quick-pulse-text');
+      if (textEl) textEl.classList.toggle('collapsed', !_quickPulseExpanded);
+      btn.textContent = _quickPulseExpanded ? 'Show less' : 'Read more';
+    });
   }
 
   function updateProgressUI(topic, mainArticles) {
@@ -423,23 +402,14 @@
   }
 
   // ─── Render result screen ───
+  // Order: topic summary panel -> Main Articles -> Quick Pulse (secondary) ->
+  // Related Coverage (only if extra articles exist) -> Feedback.
+  // Key Developments is intentionally not rendered here (removed from widget UI).
   function renderResult(data) {
     var content = document.getElementById('tp-content');
     if (!content) return;
 
-    // Key developments
-    _selectedKeyDevIndex = 0;
-    _keyDevExpanded = false;
-    _summaryDescExpanded = false;
-    var developments = data.keyDevelopments || [];
-    var devHtml =
-      '<div class="key-dev-card">' +
-        '<div class="section-heading">Key Developments</div>' +
-        (developments.length
-          ? renderKeyDevelopmentTabs(developments) +
-            '<div id="tp-key-dev-panel" class="key-dev-panel">' + renderKeyDevelopmentPanel(developments, 0) + '</div>'
-          : '<div class="key-dev-empty">No key developments found for this topic yet.</div>') +
-      '</div>';
+    _quickPulseExpanded = false;
 
     // Main articles (top 5 latest) + Related coverage (remaining, latest first).
     // Only real, clickable indianexpress.com article pages are ever shown as cards.
@@ -464,7 +434,10 @@
       : '';
 
     var currentTopic = data.topic || _currentQuery;
-    var summaryPanelHtml = buildTopicSummaryPanel(currentTopic, allArticles.length, mainArticles, data.summary);
+    var summaryPanelHtml = buildTopicSummaryPanel(
+      currentTopic, allArticles.length, mainArticles, data.sourceLabel, data.topicSignalLabel
+    );
+    var quickPulseHtml = buildQuickPulseSection(data.summary);
 
     // Feedback
     _feedbackUseful = null;
@@ -483,7 +456,7 @@
       '<div class="saarthi-screen">' +
         summaryPanelHtml +
         mainArticlesSection +
-        devHtml +
+        quickPulseHtml +
         relatedSection +
         feedbackHtml +
       '</div>';
@@ -498,24 +471,7 @@
     var articleListEl = document.getElementById('tp-article-list');
     if (articleListEl) bindArticleCardEvents(articleListEl, restArticles, currentTopic, 'related_article', onRead);
 
-    // Topic summary read-more handler
-    var summaryReadMoreBtn = document.getElementById('tp-summary-readmore');
-    if (summaryReadMoreBtn) {
-      summaryReadMoreBtn.addEventListener('click', function (e) {
-        e.stopPropagation();
-        e.preventDefault();
-        _summaryDescExpanded = !_summaryDescExpanded;
-        var descEl = document.getElementById('tp-summary-desc');
-        if (descEl) descEl.classList.toggle('collapsed', !_summaryDescExpanded);
-        summaryReadMoreBtn.textContent = _summaryDescExpanded ? 'Show less' : 'Read More →';
-      });
-    }
-
-    // Key Developments tab + read-more handlers
-    if (developments.length) {
-      bindKeyDevelopmentEvents(developments, content);
-    }
-
+    bindQuickPulseEvents();
     bindFeedbackEvents();
   }
 
@@ -559,7 +515,7 @@
     showScreen('error');
 
     document.getElementById('tp-retry-btn').onclick = function () {
-      if (_currentQuery) submitQuery(_currentQuery); else restartWidget();
+      if (_currentQuery) submitQuery(_currentQuery, _currentClusterId); else restartWidget();
     };
   }
 

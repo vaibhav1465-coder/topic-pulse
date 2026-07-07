@@ -15,8 +15,18 @@ interface AnswerInput extends TopicMatchResult {
   matchTier?: 'exact' | 'soft-match' | 'insufficient';
 }
 
-function buildSummary(result: AnswerInput, hasValidCards: boolean): string {
+// Quick Pulse must read as article-backed, not as freestanding AI commentary —
+// the lead-in names exactly where the articles shown above came from.
+function quickPulseLeadIn(sourceMode: TopicPulseAnswer['sourceMode']): string {
+  if (sourceMode === 'live-rss-feed') return 'Based on the live articles shown above';
+  if (sourceMode === 'hybrid-live-rss-cache') return 'Based on the live articles and recent cache shown above';
+  if (sourceMode === 'static-demo-cache') return 'Based on the recent cached articles shown above';
+  return 'Based on the articles shown above';
+}
+
+function buildSummary(result: AnswerInput, hasValidCards: boolean, sourceMode: TopicPulseAnswer['sourceMode']): string {
   const count = result.articles.length;
+  const leadIn = quickPulseLeadIn(sourceMode);
 
   if (count === 0) {
     return `I could not find any source coverage for "${result.topic}" right now.`;
@@ -37,11 +47,11 @@ function buildSummary(result: AnswerInput, hasValidCards: boolean): string {
   }
 
   if (result.matchTier === 'soft-match' || result.confidence === 'low') {
-    return `I found limited coverage for "${result.topic}". Here's what's available: ${headlines}.`;
+    return `${leadIn}, coverage for "${result.topic}" is limited. Here's what's available: ${headlines}.`;
   }
 
   return (
-    `Here is today's pulse on "${result.topic}": ${headlines}. ` +
+    `${leadIn}, here is the quick pulse on "${result.topic}": ${headlines}. ` +
     `Found ${count} source article${count > 1 ? 's' : ''} under ${categoryLabel}.`
   );
 }
@@ -89,20 +99,29 @@ function computeSourceMode(articles: EnrichedArticle[]): TopicPulseAnswer['sourc
   return 'static-demo-cache';
 }
 
-function computeSourceLabel(sourceMode: TopicPulseAnswer['sourceMode'], nlpEnabled: boolean): string {
-  const base =
+// "Article source" wording only — Google Trends/search-interest is reported
+// separately via topicSignalLabel below, never folded into the source label,
+// so it can never read as "articles fetched from Google Trends".
+function computeSourceLabel(sourceMode: TopicPulseAnswer['sourceMode']): string {
+  return (
     {
-      'hybrid-live-rss-cache': 'Live RSS + Recent cache',
-      'live-rss-feed': 'Live RSS feed',
-      'static-demo-cache': 'Recent fallback cache',
+      'hybrid-live-rss-cache': 'Live articles + recent cache',
+      'live-rss-feed': 'Live articles',
+      'static-demo-cache': 'Recent cache',
       'wordpress-api': 'WordPress REST API',
-      'google-nlp-enriched': 'Recent fallback cache',
-    }[sourceMode] || 'Recent fallback cache';
-
-  return nlpEnabled ? `${base} + Google NLP` : base;
+      'google-nlp-enriched': 'Recent cache',
+    }[sourceMode] || 'Recent cache'
+  );
 }
 
-export function buildAnswer(result: AnswerInput): TopicPulseAnswer {
+function computeTopicSignalLabel(nlpEnabled: boolean, searchInterestActive: boolean): string | null {
+  const parts: string[] = [];
+  if (nlpEnabled) parts.push('Google NLP');
+  if (searchInterestActive) parts.push('Search-interest signals');
+  return parts.length ? parts.join(' + ') : null;
+}
+
+export function buildAnswer(result: AnswerInput): TopicPulseAnswer & { topicSignalLabel: string | null } {
   // Only real, clickable indianexpress.com article pages become cards — fallback
   // cache (example.com) articles may still inform the summary/key developments
   // above, but never render as a fake clickable Main Article / Related Coverage card.
@@ -112,11 +131,12 @@ export function buildAnswer(result: AnswerInput): TopicPulseAnswer {
 
   const nlpEnabled = getNlpStatus().enabled;
   const sourceMode = computeSourceMode(result.articles);
+  const searchInterestActive = false; // no search-interest signal wired up yet
 
   const sourceBreakdown: SourceBreakdown = {
     liveRss: result.articles.filter((a) => a.sourceMode === 'live-rss-feed').length,
     googleNlp: nlpEnabled,
-    googleTrends: false,
+    googleTrends: searchInterestActive,
     fallbackCache: result.articles.filter((a) => a.sourceMode === 'static-demo-cache').length,
     wordpressRestApi: false,
   };
@@ -124,13 +144,14 @@ export function buildAnswer(result: AnswerInput): TopicPulseAnswer {
   return {
     topic: result.topic,
     confidence: result.confidence,
-    summary: buildSummary(result, hasValidCards),
+    summary: buildSummary(result, hasValidCards, sourceMode),
     keyDevelopments: buildKeyDevelopments(result),
     relatedArticles,
     sourcesUsed: result.articles.length,
     lastUpdated: new Date().toISOString(),
     sourceMode,
-    sourceLabel: computeSourceLabel(sourceMode, nlpEnabled),
+    sourceLabel: computeSourceLabel(sourceMode),
+    topicSignalLabel: computeTopicSignalLabel(nlpEnabled, searchInterestActive),
     sourceBreakdown,
     caveat: buildCaveat(result, hasValidCards),
   };

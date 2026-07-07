@@ -582,24 +582,34 @@ export default function HomePage() {
                   <h3 className="tp-engine-title">Source-backed topic summary</h3>
 
                   <p className="tp-engine-text">
-                    Recent Indian Express stories are matched, clustered, summarized, and converted into useful article
-                    discovery paths.
+                    Topic Pulse helps readers follow important developments across multiple related articles by
+                    grouping recent coverage into simple, source-linked topic updates.
                   </p>
 
                   <div className="tp-engine-steps">
                     <div className="tp-engine-step">
                       <span className="tp-step-number">1</span>
-                      Check recent IE stories
+                      Collect recent stories
                     </div>
 
                     <div className="tp-engine-step">
                       <span className="tp-step-number">2</span>
-                      Match topic, entity, location
+                      Clean and filter articles
                     </div>
 
                     <div className="tp-engine-step">
                       <span className="tp-step-number">3</span>
-                      Generate Quick Pulse
+                      Understand topic/search-interest signals
+                    </div>
+
+                    <div className="tp-engine-step">
+                      <span className="tp-step-number">4</span>
+                      Group related stories
+                    </div>
+
+                    <div className="tp-engine-step">
+                      <span className="tp-step-number">5</span>
+                      Show the pulse and article cards
                     </div>
                   </div>
                 </div>
