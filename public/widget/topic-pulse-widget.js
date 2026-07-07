@@ -19,29 +19,6 @@
     { label: 'Entertainment & lifestyle', query: 'Entertainment & lifestyle', articleCount: 4, category: 'Entertainment & Lifestyle', emoji: '🎬' },
   ];
 
-  var METHODOLOGY_STEPS = [
-    {
-      title: 'Collect Recent News Stories',
-      text: 'Pull recent Indian Express article data from the last 2–3 days.',
-    },
-    {
-      title: 'Clean & Filter Articles',
-      text: 'Remove noise, drop non-article pages, and keep relevant story URLs.',
-    },
-    {
-      title: 'Understand Topics & Trends',
-      text: 'Use article signals, Google NLP, and Google Trends support.',
-    },
-    {
-      title: 'Group Similar Stories',
-      text: 'Cluster related stories into simple, user-friendly topics.',
-    },
-    {
-      title: 'Show the Pulse',
-      text: 'Present a quick pulse, key developments, and main related articles.',
-    },
-  ];
-
   var CATEGORY_EMOJI = {
     'Banking & Finance':       '🏦',
     'Markets & Economy':       '📈',
@@ -142,6 +119,11 @@
   var _summaryDescExpanded = false;
   // topic (string) -> Set of read article URLs, session-only, reset on page refresh
   var _readProgress = {};
+  var _articleClickCount = 0;
+  var _feedbackUseful = null;
+
+  var REGISTRATION_LS_KEY = 'tp_registered';
+  var REGISTRATION_TRIGGER_COUNT = 4;
 
   function getReadSet(topic) {
     var key = topic || '';
@@ -194,6 +176,10 @@
         openArticle(a, currentTopic, contentPrefix + '_' + (idx + 1));
         getReadSet(currentTopic)[a.url] = true;
         if (onRead) onRead();
+        _articleClickCount++;
+        if (_articleClickCount === REGISTRATION_TRIGGER_COUNT && !isRegistered()) {
+          showRegistrationModal();
+        }
       }
       card.addEventListener('click', activate);
       card.addEventListener('keydown', function (e) {
@@ -250,14 +236,6 @@
             'placeholder="What happened today in RBI?" aria-label="Search topic" />' +
           '<button class="cta-button" id="tp-submit-btn">Search</button>' +
         '</div>' +
-        '<button class="methodology-card" id="tp-methodology-card" type="button">' +
-          '<span class="methodology-card-icon">🧠</span>' +
-          '<span class="methodology-card-body">' +
-            '<span class="methodology-card-title">How this product works</span>' +
-            '<span class="methodology-card-subtitle">Simple 5-step methodology for demo explanation</span>' +
-          '</span>' +
-          '<span class="methodology-card-arrow">→</span>' +
-        '</button>' +
         '<div class="section-heading">Today\'s Pulses</div>' +
         '<div class="option-buttons" id="tp-chips">' +
           '<div class="pulses-loading"><div class="spinner-sm"></div> Loading…</div>' +
@@ -275,43 +253,7 @@
     });
     setTimeout(function () { if (input) input.focus(); }, 80);
 
-    document.getElementById('tp-methodology-card').addEventListener('click', function (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      renderMethodologyScreen();
-    });
-
     loadPulses();
-  }
-
-  // ─── Methodology screen ───
-  function renderMethodologyScreen() {
-    var content = document.getElementById('tp-content');
-    if (!content) return;
-
-    var stepsHtml = METHODOLOGY_STEPS.map(function (step, i) {
-      return (
-        '<div class="methodology-step">' +
-          '<div class="methodology-step-number">' + (i + 1) + '</div>' +
-          '<div class="methodology-step-card">' +
-            '<div class="methodology-step-title">' + escHtml(step.title) + '</div>' +
-            '<div class="methodology-step-text">' + escHtml(step.text) + '</div>' +
-          '</div>' +
-        '</div>' +
-        (i < METHODOLOGY_STEPS.length - 1 ? '<div class="methodology-step-arrow">↓</div>' : '')
-      );
-    }).join('');
-
-    content.innerHTML =
-      '<div class="saarthi-screen">' +
-        '<div class="bot-message">' +
-          '<div class="bot-message-title">How It Works</div>' +
-          '<p>Important updates are spread across multiple stories. Topic Pulse brings them together into one quick, clear view.</p>' +
-        '</div>' +
-        '<div class="methodology-steps">' + stepsHtml + '</div>' +
-      '</div>';
-
-    showScreen('methodology');
   }
 
   // ─── Load today's pulses ───
@@ -447,10 +389,8 @@
     });
   }
 
-  var SUMMARY_DESC_TEXT = 'Topic Pulse groups recent related stories into a quick, source-linked update so readers can follow important developments without opening multiple sections.';
-
   // ─── Topic summary panel (UPSC-style upper area) ───
-  function buildTopicSummaryPanel(topic, totalCount, mainArticles) {
+  function buildTopicSummaryPanel(topic, totalCount, mainArticles, summaryText) {
     var readCount = getReadCount(topic, mainArticles);
     var totalMinutes = estimateTotalReadMinutes(mainArticles);
     var pct = mainArticles.length ? Math.round((readCount / mainArticles.length) * 100) : 0;
@@ -466,7 +406,7 @@
             '<span class="topic-progress-time">' + totalMinutes + ' min</span>' +
           '</div>' +
           '<div class="topic-progress-bar"><div class="topic-progress-fill" id="tp-progress-fill-bar" style="width:' + pct + '%"></div></div>' +
-          '<p class="topic-summary-desc' + (_summaryDescExpanded ? '' : ' collapsed') + '" id="tp-summary-desc">' + escHtml(SUMMARY_DESC_TEXT) + '</p>' +
+          '<p class="topic-summary-desc' + (_summaryDescExpanded ? '' : ' collapsed') + '" id="tp-summary-desc">' + escHtml(summaryText || '') + '</p>' +
           '<button class="topic-summary-readmore" id="tp-summary-readmore" type="button">' + (_summaryDescExpanded ? 'Show less' : 'Read More →') + '</button>' +
         '</div>' +
       '</div>'
@@ -524,27 +464,25 @@
       : '';
 
     var currentTopic = data.topic || _currentQuery;
-    var summaryPanelHtml = buildTopicSummaryPanel(currentTopic, allArticles.length, mainArticles);
+    var summaryPanelHtml = buildTopicSummaryPanel(currentTopic, allArticles.length, mainArticles, data.summary);
 
     // Feedback
+    _feedbackUseful = null;
     var feedbackHtml =
       '<div class="feedback-section" id="tp-feedback">' +
         '<div class="feedback-label">Was this useful?</div>' +
         '<div class="feedback-buttons">' +
-          '<button class="feedback-btn feedback-btn-yes" id="tp-fb-yes">👍 Yes</button>' +
-          '<button class="feedback-btn feedback-btn-no"  id="tp-fb-no">👎 No</button>' +
+          '<button class="feedback-btn feedback-btn-yes" id="tp-fb-yes" type="button">👍 Yes</button>' +
+          '<button class="feedback-btn feedback-btn-no"  id="tp-fb-no" type="button">👎 No</button>' +
         '</div>' +
+        '<textarea class="feedback-textarea" id="tp-fb-comment" placeholder="Any suggestion? (optional)" rows="2"></textarea>' +
+        '<button class="cta-button feedback-submit-btn" id="tp-fb-submit" type="button" disabled>Submit Feedback</button>' +
       '</div>';
 
     content.innerHTML =
       '<div class="saarthi-screen">' +
         summaryPanelHtml +
         mainArticlesSection +
-        '<div class="quick-pulse-card bot-message">' +
-          '<div class="bot-message-title">Quick Pulse</div>' +
-          '<p class="quick-pulse-text collapsed" id="tp-quick-pulse-text">' + escHtml(data.summary) + '</p>' +
-          '<button class="tp-read-more-btn" id="tp-quick-pulse-readmore">Read more</button>' +
-        '</div>' +
         devHtml +
         relatedSection +
         feedbackHtml +
@@ -573,26 +511,35 @@
       });
     }
 
-    // Quick Pulse read-more handler
-    var qpReadMoreBtn = document.getElementById('tp-quick-pulse-readmore');
-    if (qpReadMoreBtn) {
-      qpReadMoreBtn.addEventListener('click', function (e) {
-        e.stopPropagation();
-        e.preventDefault();
-        var textEl = document.getElementById('tp-quick-pulse-text');
-        if (!textEl) return;
-        var collapsed = textEl.classList.toggle('collapsed');
-        qpReadMoreBtn.textContent = collapsed ? 'Read more' : 'Show less';
-      });
-    }
-
     // Key Developments tab + read-more handlers
     if (developments.length) {
       bindKeyDevelopmentEvents(developments, content);
     }
 
-    document.getElementById('tp-fb-yes').onclick = function () { submitFeedback(true); };
-    document.getElementById('tp-fb-no').onclick  = function () { submitFeedback(false); };
+    bindFeedbackEvents();
+  }
+
+  // ─── Feedback form ───
+  function bindFeedbackEvents() {
+    var yesBtn = document.getElementById('tp-fb-yes');
+    var noBtn = document.getElementById('tp-fb-no');
+    var submitBtn = document.getElementById('tp-fb-submit');
+    if (!yesBtn || !noBtn || !submitBtn) return;
+
+    function selectUseful(value) {
+      _feedbackUseful = value;
+      yesBtn.classList.toggle('active', value === true);
+      noBtn.classList.toggle('active', value === false);
+      submitBtn.disabled = false;
+    }
+
+    yesBtn.addEventListener('click', function () { selectUseful(true); });
+    noBtn.addEventListener('click', function () { selectUseful(false); });
+    submitBtn.addEventListener('click', function () {
+      if (_feedbackUseful === null) return;
+      var commentEl = document.getElementById('tp-fb-comment');
+      submitFeedback(_feedbackUseful, commentEl ? commentEl.value.trim() : '');
+    });
   }
 
   // ─── Render error screen ───
@@ -617,7 +564,7 @@
   }
 
   // ─── Submit feedback ───
-  function submitFeedback(useful) {
+  function submitFeedback(useful, comment) {
     var fbArea = document.getElementById('tp-feedback');
     if (!fbArea) return;
     fbArea.innerHTML = '<span class="feedback-thanks">Thanks for your feedback!</span>';
@@ -629,9 +576,108 @@
         query: _currentQuery,
         topic: _currentData ? _currentData.topic : _currentQuery,
         useful: useful,
+        comment: comment || '',
         sourcesUsed: _currentData ? _currentData.sourcesUsed : 0,
       }),
     }).catch(function () { /* non-critical */ });
+  }
+
+  // ─── Registration popup (shown after 4th real article click) ───
+  function isRegistered() {
+    try {
+      return window.localStorage.getItem(REGISTRATION_LS_KEY) === '1';
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function markRegistered() {
+    try {
+      window.localStorage.setItem(REGISTRATION_LS_KEY, '1');
+    } catch (e) { /* ignore */ }
+  }
+
+  function closeRegistrationModal() {
+    var overlay = document.getElementById('tp-registration-overlay');
+    if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+  }
+
+  function showRegistrationModal() {
+    if (document.getElementById('tp-registration-overlay')) return;
+
+    var overlay = document.createElement('div');
+    overlay.id = 'tp-registration-overlay';
+    overlay.className = 'tp-modal-overlay';
+    overlay.innerHTML =
+      '<div class="tp-modal-card" role="dialog" aria-label="Register to continue">' +
+        '<button class="tp-modal-close" id="tp-reg-close" type="button" aria-label="Close">✕</button>' +
+        '<div class="tp-modal-title">Stay in the loop ⚡</div>' +
+        '<p class="tp-modal-subtitle">Register to keep following Topic Pulse updates.</p>' +
+        '<div class="tp-modal-field">' +
+          '<label for="tp-reg-name">Name</label>' +
+          '<input type="text" id="tp-reg-name" placeholder="Your name" required />' +
+        '</div>' +
+        '<div class="tp-modal-field">' +
+          '<label for="tp-reg-email">Email</label>' +
+          '<input type="email" id="tp-reg-email" placeholder="you@example.com" required />' +
+        '</div>' +
+        '<div class="tp-modal-field">' +
+          '<label for="tp-reg-mobile">Mobile</label>' +
+          '<input type="tel" id="tp-reg-mobile" placeholder="10-digit mobile number" required />' +
+        '</div>' +
+        '<div class="tp-modal-error hidden" id="tp-reg-error">Please fill in all fields correctly.</div>' +
+        '<button class="cta-button" id="tp-reg-submit" type="button">Register</button>' +
+      '</div>';
+
+    document.body.appendChild(overlay);
+
+    document.getElementById('tp-reg-close').addEventListener('click', closeRegistrationModal);
+
+    document.getElementById('tp-reg-submit').addEventListener('click', function () {
+      var name = document.getElementById('tp-reg-name').value.trim();
+      var email = document.getElementById('tp-reg-email').value.trim();
+      var mobile = document.getElementById('tp-reg-mobile').value.trim();
+      var errorEl = document.getElementById('tp-reg-error');
+
+      var emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+      var mobileOk = /^\d{10}$/.test(mobile.replace(/\D/g, ''));
+
+      if (!name || !emailOk || !mobileOk) {
+        if (errorEl) errorEl.classList.remove('hidden');
+        return;
+      }
+      if (errorEl) errorEl.classList.add('hidden');
+
+      submitRegistration({ name: name, email: email, mobile: mobile });
+    });
+  }
+
+  function submitRegistration(fields) {
+    var payload = {
+      name: fields.name,
+      email: fields.email,
+      mobile: fields.mobile,
+      query: _currentQuery,
+      topic: _currentData ? _currentData.topic : _currentQuery,
+      timestamp: new Date().toISOString(),
+    };
+
+    function finish() {
+      markRegistered();
+      var card = document.querySelector('#tp-registration-overlay .tp-modal-card');
+      if (card) {
+        card.innerHTML = '<div class="tp-modal-thanks">Thanks, registration saved for demo 🙌</div>';
+      }
+      setTimeout(closeRegistrationModal, 1200);
+    }
+
+    fetch(API_BASE + '/api/topic-pulse/registration', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+      .then(function () { finish(); })
+      .catch(function () { finish(); });
   }
 
   // ─── Build launcher ───

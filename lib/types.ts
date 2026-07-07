@@ -68,6 +68,15 @@ export interface FeedbackPayload {
   timestamp?: string;
 }
 
+export interface RegistrationPayload {
+  name: string;
+  email: string;
+  mobile: string;
+  query?: string;
+  topic?: string;
+  timestamp?: string;
+}
+
 export interface TopicCache {
   builtAt: string;
   articleCount: number;
